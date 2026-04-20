@@ -7,10 +7,10 @@ export const dbProvider = {
 	provide: DB_PROVIDER,
 	useFactory: async () => {
 		const connection = await mysql.createConnection({
-			host: "localhost",
-			user: "root",
-			password: "rootpassword",
-			database: "sop_db",
+			host: `${process.env.DB_HOST}`,
+			user: `${process.env.DB_USER}`,
+			password: `${process.env.DB_PASSWORD}`,
+			database: `${process.env.DB_NAME}`,
 		});
 
 		return drizzle(connection);

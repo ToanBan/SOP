@@ -16,7 +16,7 @@ import { useUser } from "../../context/authContext";
 
 const MainLayout: React.FC = () => {
   const { user, logout } = useUser();
-
+  console.log("User in MainLayout:", user);
   const rawMenuItems = [
     {
       name: "Dashboard",
@@ -55,7 +55,7 @@ const MainLayout: React.FC = () => {
 
   const menuItems = rawMenuItems.filter((item) => {
     if (item.adminOnly) {
-      return user?.user?.role === "admin";
+      return user?.user?.roleName === "admin";
     }
     return true;
   });

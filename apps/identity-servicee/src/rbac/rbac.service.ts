@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm/sql/expressions/conditions';
 import { permissions } from 'src/db/schemas/permissions.schema';
 import { users } from 'src/db/schemas/user.schema';
 import { roles } from 'src/db/schemas/role.schema';
+import { userRoles } from 'src/db/schemas/user_roles.schema';
 @Injectable()
 export class RbacService {
   constructor(@Inject(DB_PROVIDER) private readonly db: any) {}
@@ -50,25 +51,35 @@ export class RbacService {
     return permissionsDb;
   }
 
- 
-
   async getUsers() {
-    const usersDb = await this.db
+    const rows = await this.db
       .select({
         id: users.id,
         username: users.username,
         email: users.email,
-        role: roles.name,
-        roleId: roles.id,
+        roleName: roles.name,
       })
       .from(users)
-      .leftJoin(roles, eq(users.roleId, roles.id));
+      .innerJoin(userRoles, eq(users.id, userRoles.userId))
+      .innerJoin(roles, eq(userRoles.roleId, roles.id));
 
-    if (!usersDb) {
-      throw new Error('Không có user');
-    }
+    const grouped = Object.values(
+      rows.reduce((acc, cur) => {
+        if (!acc[cur.id]) {
+          acc[cur.id] = {
+            id: cur.id,
+            username: cur.username,
+            email: cur.email,
+            roles: [],
+          };
+        }
 
-    return usersDb;
+        acc[cur.id].roles.push(cur.roleName);
+        return acc;
+      }, {} as any),
+    );
+
+    return grouped;
   }
 
   async getRoles() {
@@ -91,5 +102,29 @@ export class RbacService {
       .where(eq(rolePermissions.roleId, roleId));
 
     return rows;
+  }
+
+  async assignRole(roleId: string, RolesId: string[]) {
+    try {
+      const exist = await this.db.select(roles).where(eq(roles.id, roleId));
+
+      if (!exist.length) {
+        throw new Error('Role not found');
+      }
+
+      await this.db.transaction(async (tx) => {
+        await tx.delete(userRoles).where(eq(userRoles.userId, roleId));
+        if (RolesId.length > 0) {
+          const userRolesData = RolesId.map((roleId) => ({
+            userId: roleId,
+            roleId,
+          }));
+          await tx.insert(userRoles).values(userRolesData);
+        }
+      });
+      return {success:true, message:'Assigned Roles successfully'}
+    } catch (error) {
+      return { success: false, message: 'Failed' };
+    }
   }
 }

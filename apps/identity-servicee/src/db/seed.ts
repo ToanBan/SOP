@@ -9,21 +9,25 @@ export class SeedService implements OnModuleInit {
   constructor(@Inject(DB_PROVIDER) private readonly db: any) {}
 
   private PERMISSIONS = [
-    'message:read',
-    'message:reply',
-    'order:create',
-    'order:read',
-    'order:update',
+    'message.read',
+    'message.reply',
+    'message.assign',
+    'message.delete',
 
-    'user:read',
-    'user:create',
-    'user:update',
-    'user:delete',
+    'customer.create',
+    'customer.read',
+    'customer.update',
+    'customer.delete',
 
-    'role:read',
-    'role:update',
-    'report:read',
-    'analytics:read',
+    'order.create',
+    'order.read',
+    'order.update',
+    'order.delete',
+
+    'post.create',
+    'post.read',
+    'post.update',
+    'post.delete',
   ];
 
   async onModuleInit() {
@@ -45,8 +49,18 @@ export class SeedService implements OnModuleInit {
       });
     }
 
+    const marketingRole = await this.db
+      .select()
+      .from(roles)
+      .where(eq(roles.name, 'marketing'))
+      .limit(1);
 
-
+    if (marketingRole.length === 0) {
+      await this.db.insert(roles).values({
+        id: uuidv4(),
+        name: 'marketing',
+      });
+    }
 
     const salesRole = await this.db
       .select()

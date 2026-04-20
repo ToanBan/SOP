@@ -15,7 +15,7 @@ import getAllRoles from "../api/admin/getAllRoles";
 import Swal from "sweetalert2";
 interface UserProps {
   id: string;
-  role: string;
+  roles: string[];
   username: string;
   email: string;
   roleId: string;
@@ -25,8 +25,6 @@ interface RoleProps {
   id: string;
   name: string;
 }
-
-
 
 const AdminSales: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,6 +42,8 @@ const AdminSales: React.FC = () => {
         getAllRoles(),
         getAllUser(),
       ]);
+
+      console.log(usersRes);
       setUsers(usersRes);
       setRoles(rolesRes);
     } catch (error) {
@@ -67,8 +67,6 @@ const AdminSales: React.FC = () => {
     setSelectedUser(user);
     setIsModalOpen(true);
   };
-
-  
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans text-slate-800 relative">
@@ -156,7 +154,11 @@ const AdminSales: React.FC = () => {
                       <td className="px-8 py-6">
                         <div className="flex flex-wrap gap-2">
                           <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-tighter">
-                            {user.role}
+                            {user.roles.length > 0 ? (
+                              user.roles.map((role) => role).join(", ")
+                            ) : (
+                              <></>
+                            )}
                             <X
                               size={14}
                               className="cursor-pointer hover:bg-rose-600 hover:text-white rounded-full p-0.5 transition-all"
@@ -295,10 +297,7 @@ const AdminSales: React.FC = () => {
               >
                 Hủy bỏ
               </button>
-              <button
-                
-                className="flex-1 rounded-2xl bg-indigo-600 py-4 font-bold text-white shadow-xl shadow-indigo-100 hover:bg-indigo-700 hover:-translate-y-1 transition-all active:scale-95"
-              >
+              <button className="flex-1 rounded-2xl bg-indigo-600 py-4 font-bold text-white shadow-xl shadow-indigo-100 hover:bg-indigo-700 hover:-translate-y-1 transition-all active:scale-95">
                 Lưu thay đổi
               </button>
             </div>

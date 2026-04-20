@@ -18,6 +18,7 @@ import { roles } from './db/schemas/role.schema';
 import * as crypto from 'crypto';
 import { userSessions } from './db/schemas/user_sessions.schema';
 import { userProviders } from './db/schemas/user_providers.schema';
+import { userRoles } from './db/schemas/user_roles.schema';
 @Injectable()
 export class AppService {
   constructor(
@@ -27,107 +28,124 @@ export class AppService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const exist = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.email, dto.email))
-      .limit(1);
+    try {
+      return await this.db.transaction(async (tx) => {
+        const exist = await tx
+          .select()
+          .from(users)
+          .where(eq(users.email, dto.email))
+          .limit(1);
 
-    if (exist.length > 0) {
-      throw new BadRequestException('Email already exists');
+        if (exist.length > 0) {
+          throw new BadRequestException('Email already exists');
+        }
+
+        const hashed = await bcrypt.hash(dto.password, 10);
+
+        const [role] = await tx
+          .select()
+          .from(roles)
+          .where(eq(roles.name, 'sales'))
+          .limit(1);
+
+        if (!role) {
+          throw new BadRequestException('Default role not found');
+        }
+
+        const userId = uuidv4();
+
+        await tx.insert(users).values({
+          id: userId,
+          email: dto.email,
+          username: dto.username,
+          password: hashed,
+          isActive: true,
+        });
+
+        await tx.insert(userRoles).values({
+          userId,
+          roleId: role.id,
+        });
+
+        return {
+          message: 'Register success',
+          userId,
+          role: role.name,
+        };
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { success: false, message: 'Registration failed' };
     }
-
-    const hashed = await bcrypt.hash(dto.password, 10);
-
-    const [role] = await this.db
-      .select()
-      .from(roles)
-      .where(eq(roles.name, 'sales'))
-      .limit(1);
-
-    if (!role) {
-      throw new BadRequestException('Default role not found');
-    }
-
-    const user = {
-      id: uuidv4(),
-      email: dto.email,
-      username: dto.username,
-      password: hashed,
-      roleId: role.id,
-      isActive: true,
-    };
-
-    await this.db.insert(users).values(user);
-
-    return {
-      message: 'Register success',
-      userId: user.id,
-    };
   }
 
   async login(dto: LoginDto) {
-    const [result] = await this.db
-      .select({
-        id: users.id,
-        email: users.email,
-        password: users.password,
-        username: users.username,
-        roleName: roles.name,
-      })
-      .from(users)
-      .leftJoin(roles, eq(users.roleId, roles.id))
-      .where(eq(users.email, dto.email))
-      .limit(1);
+    try {
+      const [result] = await this.db
+        .select({
+          id: users.id,
+          email: users.email,
+          password: users.password,
+          username: users.username,
+          roleName: roles.name,
+        })
+        .from(users)
+        .innerJoin(userRoles, eq(users.id, userRoles.userId))
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(eq(users.email, dto.email));
 
-    if (!result || !(await bcrypt.compare(dto.password, result.password))) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
-    }
+      if (!result || !(await bcrypt.compare(dto.password, result.password))) {
+        throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+      }
 
-    if (!result.roleName) {
-      throw new UnauthorizedException('User chưa được gán role');
-    }
+      if (!result.roleName) {
+        throw new UnauthorizedException('User chưa được gán role');
+      }
 
-    const sessionId = crypto.randomUUID();
+      const sessionId = crypto.randomUUID();
 
-    const payload = {
-      sub: result.id,
-      email: result.email,
-      role: result.roleName,
-      sid: sessionId,
-    };
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: process.env.ACCESS_TOKEN_SECRET,
-        expiresIn: '30m',
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: process.env.REFRESH_TOKEN_SECRET,
-        expiresIn: '4d',
-      }),
-    ]);
-
-    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-
-    await this.db.insert(userSessions).values({
-      id: sessionId,
-      userId: result.id,
-      hashedRefreshToken,
-      expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
-      isRevoked: false,
-    });
-
-    return {
-      accessToken,
-      refreshToken,
-      user: {
-        id: result.id,
-        username: result.username,
+      const payload = {
+        sub: result.id,
         email: result.email,
         role: result.roleName,
-      },
-    };
+        sid: sessionId,
+      };
+
+      const [accessToken, refreshToken] = await Promise.all([
+        this.jwtService.signAsync(payload, {
+          secret: process.env.ACCESS_TOKEN_SECRET,
+          expiresIn: '30m',
+        }),
+        this.jwtService.signAsync(payload, {
+          secret: process.env.REFRESH_TOKEN_SECRET,
+          expiresIn: '4d',
+        }),
+      ]);
+
+      const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+
+      await this.db.insert(userSessions).values({
+        id: sessionId,
+        userId: result.id,
+        hashedRefreshToken,
+        expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+        isRevoked: false,
+      });
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: result.id,
+          username: result.username,
+          email: result.email,
+          role: result.roleName,
+        },
+      };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, message: 'Login failed' };
+    }
   }
 
   async refreshToken(token: string) {
@@ -186,19 +204,23 @@ export class AppService {
   }
 
   async getMe(userId: string) {
-    const [user] = await this.db
-      .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        role: roles.name,
-      })
-      .from(users)
-      .leftJoin(roles, eq(users.roleId, roles.id))
-      .where(eq(users.id, userId))
-      .limit(1);
+    try {
+      const [user] = await this.db
+        .select({
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          roleName: roles.name,
+        })
+        .from(users)
+        .innerJoin(userRoles, eq(users.id, userRoles.userId))
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(eq(users.id, userId));
 
-    return { user };
+      return { user };
+    } catch (error) {
+      return { success: false, message: 'Could not fetch user info' };
+    }
   }
 
   async logout(refreshToken: string, accessToken?: string) {
@@ -255,201 +277,164 @@ export class AppService {
     return result === '1';
   }
 
-  async loginWithGithub(githubUser: any) {
-    if (!githubUser) {
-      throw new Error('GitHub user undefined');
-    }
+  private async handleSocialLogin(input: {
+    provider: string;
+    providerId: string;
+    email: string;
+    name?: string;
+  }) {
+    try {
+      const { provider, providerId, email, name } = input;
 
-    const { provider, providerId, email, username } = githubUser;
-
-    const [providerRecord] = await this.db
-      .select()
-      .from(userProviders)
-      .where(
-        and(
-          eq(userProviders.provider, provider),
-          eq(userProviders.providerId, providerId),
-        ),
-      )
-      .limit(1);
-
-    let userId: string;
-
-    if (providerRecord) {
-      userId = providerRecord.userId;
-    } else {
-      let [user] = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (!user) {
-        const [role] = await this.db
+      return await this.db.transaction(async (tx) => {
+        const [providerRecord] = await tx
           .select()
-          .from(roles)
-          .where(eq(roles.name, 'sales'))
+          .from(userProviders)
+          .where(
+            and(
+              eq(userProviders.provider, provider),
+              eq(userProviders.providerId, providerId),
+            ),
+          )
           .limit(1);
 
-        user = {
-          id: uuidv4(),
-          email,
-          username: username ?? `github_${providerId}`,
-          password: null,
-          roleId: role.id,
-          isActive: true,
+        let user: any;
+
+        if (providerRecord) {
+          const [existingUser] = await tx
+            .select()
+            .from(users)
+            .where(eq(users.id, providerRecord.userId))
+            .limit(1);
+
+          user = existingUser;
+        } else {
+          const [existingUser] = await tx
+            .select()
+            .from(users)
+            .where(eq(users.email, email))
+            .limit(1);
+
+          if (existingUser) {
+            user = existingUser;
+          } else {
+            const [salesRole] = await tx
+              .select()
+              .from(roles)
+              .where(eq(roles.name, 'sales'))
+              .limit(1);
+
+            if (!salesRole) {
+              throw new BadRequestException('Default role not found');
+            }
+
+            const userId = uuidv4();
+
+            await tx.insert(users).values({
+              id: userId,
+              email,
+              username: name ?? `${provider}_${providerId}`,
+              password: null,
+              isActive: true,
+            });
+
+            await tx.insert(userRoles).values({
+              userId,
+              roleId: salesRole.id,
+            });
+
+            user = {
+              id: userId,
+              email,
+              username: name ?? `${provider}_${providerId}`,
+            };
+          }
+
+          await tx.insert(userProviders).values({
+            id: uuidv4(),
+            userId: user.id,
+            provider,
+            providerId,
+            email,
+            name,
+          });
+        }
+
+        const roleRows = await tx
+          .select({
+            roleName: roles.name,
+          })
+          .from(userRoles)
+          .innerJoin(roles, eq(userRoles.roleId, roles.id))
+          .where(eq(userRoles.userId, user.id));
+
+        const rolesList = roleRows.map((r) => r.roleName);
+
+        const sessionId = crypto.randomUUID();
+
+        const payload = {
+          sub: user.id,
+          email: user.email,
+          roles: rolesList,
+          sid: sessionId,
         };
 
-        await this.db.insert(users).values(user);
-      }
+        const [accessToken, refreshToken] = await Promise.all([
+          this.jwtService.signAsync(payload, {
+            secret: process.env.ACCESS_TOKEN_SECRET,
+            expiresIn: '30m',
+          }),
+          this.jwtService.signAsync(payload, {
+            secret: process.env.REFRESH_TOKEN_SECRET,
+            expiresIn: '4d',
+          }),
+        ]);
 
-      userId = user.id;
+        const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
 
-      await this.db.insert(userProviders).values({
-        id: uuidv4(),
-        userId,
-        provider,
-        providerId,
-        email,
-        name: username,
+        await tx.insert(userSessions).values({
+          id: sessionId,
+          userId: user.id,
+          hashedRefreshToken,
+          expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+          isRevoked: false,
+        });
+
+        return {
+          accessToken,
+          refreshToken,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            roles: rolesList,
+          },
+        };
       });
+    } catch (error) {
+      return {success:false}
     }
+  }
 
-    const sessionId = crypto.randomUUID();
-    const payload = {
-      sub: userId,
-      role: 'sales',
-      sid: sessionId,
-      email
-    };
+  async loginWithGithub(githubUser: any) {
+    if (!githubUser) throw new Error('GitHub user undefined');
 
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: process.env.ACCESS_TOKEN_SECRET,
-        expiresIn: '30m',
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: process.env.REFRESH_TOKEN_SECRET,
-        expiresIn: '4d',
-      }),
-    ]);
-
-    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-    await this.db.insert(userSessions).values({
-      id: sessionId,
-      userId,
-      hashedRefreshToken,
-      expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
-      isRevoked: false,
+    return this.handleSocialLogin({
+      provider: githubUser.provider,
+      providerId: githubUser.providerId,
+      email: githubUser.email,
+      name: githubUser.username,
     });
-
-    return {
-      accessToken,
-      refreshToken,
-      user: {
-        id: userId,
-        email,
-        username,
-      },
-    };
   }
 
   async loginWithGoogle(googleUser: any) {
-    if (!googleUser) {
-      throw new Error('Google user undefined');
-    }
+    if (!googleUser) throw new Error('Google user undefined');
 
-    const { provider, providerId, email, name } = googleUser;
-
-    const [providerRecord] = await this.db
-      .select()
-      .from(userProviders)
-      .where(
-        and(
-          eq(userProviders.provider, provider),
-          eq(userProviders.providerId, providerId),
-        ),
-      )
-      .limit(1);
-
-    let userId: string;
-
-    if (providerRecord) {
-      userId = providerRecord.userId;
-    } else {
-      let [user] = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (!user) {
-        const [role] = await this.db
-          .select()
-          .from(roles)
-          .where(eq(roles.name, 'sales'))
-          .limit(1);
-
-        user = {
-          id: uuidv4(),
-          email,
-          username: name ?? `google_${providerId}`,
-          password: null,
-          roleId: role.id,
-          isActive: true,
-        };
-
-        await this.db.insert(users).values(user);
-      }
-
-      userId = user.id;
-
-      await this.db.insert(userProviders).values({
-        id: uuidv4(),
-        userId,
-        provider: 'google',
-        providerId,
-        email,
-        name,
-      });
-    }
-
-    const sessionId = crypto.randomUUID();
-    const payload = {
-      sub: userId,
-      role: 'sales',
-      sid: sessionId,
-      email
-    };
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: process.env.ACCESS_TOKEN_SECRET,
-        expiresIn: '30m',
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: process.env.REFRESH_TOKEN_SECRET,
-        expiresIn: '4d',
-      }),
-    ]);
-
-    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-    await this.db.insert(userSessions).values({
-      id: sessionId,
-      userId,
-      hashedRefreshToken,
-      expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
-      isRevoked: false,
+    return this.handleSocialLogin({
+      provider: googleUser.provider,
+      providerId: googleUser.providerId,
+      email: googleUser.email,
+      name: googleUser.name,
     });
-
-    return {
-      accessToken,
-      refreshToken,
-      user: {
-        id: userId,
-        email,
-        username: name,
-      },
-    };
   }
 }

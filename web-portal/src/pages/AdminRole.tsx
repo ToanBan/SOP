@@ -51,6 +51,7 @@ const AdminRole: React.FC = () => {
         getAllPermissions(),
         getAllRoles(),
       ]);
+    
       setRoles(rolesRes);
       setPermissions(permissionsRes);
     } catch (error) {

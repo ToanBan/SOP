@@ -6,7 +6,6 @@ export const users = mysqlTable("users", {
   password: varchar("password", { length: 255 }),
   username: varchar("username", { length: 255 }).notNull(),
 
-  roleId: varchar("role_id", { length: 36 }).notNull(),
 
   isActive: boolean("is_active").default(true),
 
