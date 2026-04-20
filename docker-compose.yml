@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # --- DATABASES ---
   mysql:
     image: mysql:8.0
     container_name: sop-mysql
@@ -36,7 +35,6 @@ services:
     networks:
       - sop-network
 
-  # --- MESSAGE BROKER ---
   rabbitmq:
     image: rabbitmq:3-management
     container_name: sop-rabbitmq

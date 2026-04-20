@@ -36,8 +36,14 @@ export class AppService {
           .where(eq(users.email, dto.email))
           .limit(1);
 
+
+          
         if (exist.length > 0) {
           throw new BadRequestException('Email already exists');
+        }
+
+        if (dto.password !== dto.confirmPassword) {
+          throw new BadRequestException('Passwords do not match');
         }
 
         const hashed = await bcrypt.hash(dto.password, 10);
