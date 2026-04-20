@@ -9,9 +9,9 @@ import {
   Lock,
   Loader2,
 } from "lucide-react";
-import getAllPermissions from "../api/admin/getAllPermissions";
 import getAllUser from "../api/admin/getAllUser";
 import getAllRoles from "../api/admin/getAllRoles";
+import assignRole from "../api/admin/assignRole";
 import Swal from "sweetalert2";
 interface UserProps {
   id: string;
@@ -33,7 +33,7 @@ const AdminSales: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [permSearchTerm, setPermSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserProps | null>(null);
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const fetchData = async () => {
     setLoading(true);
@@ -43,7 +43,6 @@ const AdminSales: React.FC = () => {
         getAllUser(),
       ]);
 
-      console.log(usersRes);
       setUsers(usersRes);
       setRoles(rolesRes);
     } catch (error) {
@@ -65,8 +64,45 @@ const AdminSales: React.FC = () => {
 
   const handleOpenModal = (user: UserProps) => {
     setSelectedUser(user);
+    const currentRoleIds = user.roles.map(roleName => {
+      const role = roles.find(r => r.name === roleName);
+      return role ? role.id : '';
+    }).filter(id => id !== '');
+    setSelectedRoles(currentRoleIds);
     setIsModalOpen(true);
   };
+
+  const handleAssignRoles = async () => {
+    try {
+      const result = await assignRole(selectedUser!.id, selectedRoles);
+      console.log("Assign role result:", result);
+      if (result.success) {
+        Swal.fire({
+          icon: "success",
+          title: "Thành công",
+          text: "Vai trò đã được gán thành công.",
+        });
+        fetchData();
+        setIsModalOpen(false);
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Lỗi",
+          text: result.message || "Không thể gán vai trò. Vui lòng thử lại.",
+        });
+      }
+    } catch (error) {
+      console.error("Assign roles error:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Lỗi",
+        text: "Không thể gán vai trò. Vui lòng thử lại.",
+      });
+      return;
+    }
+  };
+
+  
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans text-slate-800 relative">
@@ -217,7 +253,10 @@ const AdminSales: React.FC = () => {
                 </p>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSelectedRoles([]);
+                }}
                 className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
               >
                 <X size={24} />
@@ -252,9 +291,9 @@ const AdminSales: React.FC = () => {
                       <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
                         <input
                           type="checkbox"
-                          checked={selectedPermissions.includes(role.id)}
+                          checked={selectedRoles.includes(role.id)}
                           onChange={() => {
-                            setSelectedPermissions((prev) => {
+                            setSelectedRoles((prev) => {
                               if (prev.includes(role.id)) {
                                 return prev.filter((id) => id !== role.id);
                               } else {
@@ -292,12 +331,18 @@ const AdminSales: React.FC = () => {
             {/* Footer Actions */}
             <div className="flex gap-4 border-t border-slate-50 bg-slate-50/30 p-8">
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSelectedRoles([]);
+                }}
                 className="flex-1 rounded-2xl bg-white border border-slate-200 py-4 font-bold text-slate-500 hover:bg-slate-100 transition-all active:scale-95"
               >
                 Hủy bỏ
               </button>
-              <button className="flex-1 rounded-2xl bg-indigo-600 py-4 font-bold text-white shadow-xl shadow-indigo-100 hover:bg-indigo-700 hover:-translate-y-1 transition-all active:scale-95">
+              <button
+                onClick={handleAssignRoles}
+                className="flex-1 rounded-2xl bg-indigo-600 py-4 font-bold text-white shadow-xl shadow-indigo-100 hover:bg-indigo-700 hover:-translate-y-1 transition-all active:scale-95"
+              >
                 Lưu thay đổi
               </button>
             </div>

@@ -81,7 +81,7 @@ export class AppService {
 
   async login(dto: LoginDto) {
     try {
-      const [result] = await this.db
+      const results = await this.db
         .select({
           id: users.id,
           email: users.email,
@@ -92,22 +92,26 @@ export class AppService {
         .from(users)
         .innerJoin(userRoles, eq(users.id, userRoles.userId))
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(eq(users.email, dto.email));
+        .where(eq(users.email, dto.email))
 
-      if (!result || !(await bcrypt.compare(dto.password, result.password))) {
+      const user = results[0];
+
+      if (!user) {
         throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
       }
 
-      if (!result.roleName) {
-        throw new UnauthorizedException('User chưa được gán role');
-      }
+      const isValid = await bcrypt.compare(dto.password, user.password);
 
+      if (!isValid) {
+        throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+      }
+      const rolesList = results.map((r) => r.roleName);
       const sessionId = crypto.randomUUID();
 
       const payload = {
-        sub: result.id,
-        email: result.email,
-        role: result.roleName,
+        sub: user.id,
+        email: user.email,
+        roles: rolesList,
         sid: sessionId,
       };
 
@@ -126,7 +130,7 @@ export class AppService {
 
       await this.db.insert(userSessions).values({
         id: sessionId,
-        userId: result.id,
+        userId: user.id,
         hashedRefreshToken,
         expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
         isRevoked: false,
@@ -136,10 +140,10 @@ export class AppService {
         accessToken,
         refreshToken,
         user: {
-          id: result.id,
-          username: result.username,
-          email: result.email,
-          role: result.roleName,
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          roles: rolesList,
         },
       };
     } catch (error) {
@@ -182,11 +186,21 @@ export class AppService {
         throw new UnauthorizedException('Refresh token không hợp lệ');
       }
 
+      const roleRows = await this.db
+        .select({
+          roleName: roles.name,
+        })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(eq(userRoles.userId, payload.sub));
+
+      const roleNames = roleRows.map((r) => r.roleName);
+
       const newAccessToken = await this.jwtService.signAsync(
         {
           sub: payload.sub,
           email: payload.email,
-          role: payload.role,
+          roles: roleNames, 
           sid: payload.sid,
         },
         {
@@ -195,8 +209,12 @@ export class AppService {
         },
       );
 
-      return { accessToken: newAccessToken };
-    } catch {
+      return {
+        accessToken: newAccessToken,
+        roles: roleNames, // optional trả về luôn cho frontend
+      };
+    } catch (error) {
+      console.error('Refresh token error:', error);
       throw new UnauthorizedException(
         'Refresh token không hợp lệ hoặc đã hết hạn',
       );
@@ -205,17 +223,25 @@ export class AppService {
 
   async getMe(userId: string) {
     try {
-      const [user] = await this.db
+      const results = await this.db
         .select({
           id: users.id,
-          username: users.username,
           email: users.email,
+          password: users.password,
+          username: users.username,
           roleName: roles.name,
         })
         .from(users)
         .innerJoin(userRoles, eq(users.id, userRoles.userId))
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
         .where(eq(users.id, userId));
+
+      const user = {
+        id: results[0].id,
+        email: results[0].email,
+        username: results[0].username,
+        roles: results.map((r) => r.roleName),
+      };
 
       return { user };
     } catch (error) {
@@ -369,6 +395,7 @@ export class AppService {
           .where(eq(userRoles.userId, user.id));
 
         const rolesList = roleRows.map((r) => r.roleName);
+        console.log('rolistName', rolesList);
 
         const sessionId = crypto.randomUUID();
 
@@ -412,7 +439,7 @@ export class AppService {
         };
       });
     } catch (error) {
-      return {success:false}
+      return { success: false };
     }
   }
 

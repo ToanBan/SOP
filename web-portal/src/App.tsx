@@ -14,6 +14,7 @@ import RegisterPage from "./pages/RegisterPage";
 import OAuthSuccess from "./components/OAuthSuccess";
 import AdminSales from "./pages/AdminSales";
 import AdminRole from "./pages/AdminRole";
+import ProtectedRoute from "./components/ProtectedRoute";
 function App() {
   return (
     <Router>
@@ -26,8 +27,23 @@ function App() {
           <Route path="chat" element={<ChatPage />} />
           <Route path="orders" element={<OrderPage />} />
           <Route path="customers" element={<CustomerPage />} />
-          <Route path="admin/sales" element={<AdminSales />} />
-          <Route path="admin/roles" element={<AdminRole/>}/>
+          <Route
+            path="admin/sales"
+            element={
+              <ProtectedRoute>
+                <AdminSales />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="admin/roles"
+            element={
+              <ProtectedRoute>
+                <AdminRole />
+              </ProtectedRoute>
+            }
+          />
         </Route>
         <Route path="/oauth-success" element={<OAuthSuccess />} />
       </Routes>
