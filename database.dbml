@@ -1,0 +1,65 @@
+
+
+Table roles {
+  id varchar(36) [pk]
+  name varchar(50) [not null, unique]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table permissions {
+  id varchar(36) [pk]
+  name varchar(100) [not null, unique]
+  description text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table role_permissions {
+  role_id varchar(36) [ref: > roles.id]
+  permission_id varchar(36) [ref: > permissions.id]
+  primary key (role_id, permission_id)
+}
+
+
+Table users {
+  id varchar(36) [pk]
+  email varchar(255) [not null, unique]
+  password varchar(255) [note: 'Null nếu chỉ dùng OAuth2']
+  username varchar(255) [not null]
+  role_id varchar(36) [not null, default: "998bd3e3-5027-441b-b60b-fd83b245485b"]
+  is_active boolean [default: true]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table user_providers {
+  id varchar(36) [pk]
+  user_id varchar(36) [ref: > users.id]
+  provider varchar(50) [not null, note: 'google, github...']
+  provider_id varchar(255) [not null]
+  name varchar(255)
+  email varchar(255)
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (provider, provider_id) [unique]
+  }
+}
+
+
+Table user_sessions {
+  id varchar(36) [pk]
+  user_id varchar(36) [ref: > users.id]
+  refresh_token varchar(500) [not null, unique]
+  is_revoked boolean [default: false, note: 'Dùng để blacklist token ngay lập tức']
+  expires_at timestamp [not null]  
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  Indexes {
+    user_id
+    refresh_token
+  }
+}
