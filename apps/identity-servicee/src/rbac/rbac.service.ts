@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DB_PROVIDER } from 'src/db/db.provider';
 import { rolePermissions } from 'src/db/schemas/role_permissions.schema';
-import { eq } from 'drizzle-orm/sql/expressions/conditions';
+import { eq, inArray } from 'drizzle-orm/sql/expressions/conditions';
 import { permissions } from 'src/db/schemas/permissions.schema';
 import { users } from 'src/db/schemas/user.schema';
 import { roles } from 'src/db/schemas/role.schema';
@@ -104,27 +104,35 @@ export class RbacService {
     return rows;
   }
 
-  async assignRole(roleId: string, RolesId: string[]) {
+  async assignRole(userId: string, RolesId: string[]) {
     try {
-      const exist = await this.db.select(roles).where(eq(roles.id, roleId));
-
-      if (!exist.length) {
-        throw new Error('Role not found');
+      const existUser = await this.db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (!existUser.length) {
+        throw new Error('User not found');
       }
 
+  
+
       await this.db.transaction(async (tx) => {
-        await tx.delete(userRoles).where(eq(userRoles.userId, roleId));
+        await tx.delete(userRoles).where(eq(userRoles.userId, userId));
         if (RolesId.length > 0) {
           const userRolesData = RolesId.map((roleId) => ({
-            userId: roleId,
+            userId,
             roleId,
           }));
           await tx.insert(userRoles).values(userRolesData);
         }
       });
-      return {success:true, message:'Assigned Roles successfully'}
+      return { success: true, message: 'Assigned roles successfully' };
+
     } catch (error) {
-      return { success: false, message: 'Failed' };
+      console.error(error);
+      return { success: false || 'Failed to assign roles' };
     }
+      
   }
 }
