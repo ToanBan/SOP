@@ -5,13 +5,17 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
     "mysql2": "^3.11.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.7"
+    "@types/node": "^22.15.3",
+    "drizzle-kit": "^0.30.0"
   }
 }

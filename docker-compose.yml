@@ -111,6 +111,20 @@ services:
     networks:
       - sop-network
 
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: sop-ngrok
+    restart: unless-stopped
+    depends_on:
+      - kong
+    command: ["http", "http://kong:8000"]
+    environment:
+      NGROK_AUTHTOKEN: 36sDGrEz255ulqdWhxdvYPd8Vsx_62tQoUceaPPsXq9QrUqBR
+    ports:
+      - "4040:4040"
+    networks:
+      - sop-network
 networks:
   sop-network:
     driver: bridge

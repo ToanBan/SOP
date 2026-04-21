@@ -7,13 +7,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { and, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  users,
-  roles,
-  userSessions,
-  userProviders,
-  userRoles,
-} from '@repo/db';
+import { users, roles, userSessions, userProviders, userRoles } from '@repo/db';
 import { DB_PROVIDER } from './db/db.provider';
 import type { RegisterDto } from './dto/RegisterDto';
 import { LoginDto } from './dto/LoginDto';
@@ -29,6 +23,8 @@ export class AppService {
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
+
+
   async register(dto: RegisterDto) {
     try {
       return await this.db.transaction(async (tx) => {
@@ -38,8 +34,6 @@ export class AppService {
           .where(eq(users.email, dto.email))
           .limit(1);
 
-
-          
         if (exist.length > 0) {
           throw new BadRequestException('Email already exists');
         }
@@ -100,7 +94,7 @@ export class AppService {
         .from(users)
         .innerJoin(userRoles, eq(users.id, userRoles.userId))
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(eq(users.email, dto.email))
+        .where(eq(users.email, dto.email));
 
       const user = results[0];
 
@@ -208,7 +202,7 @@ export class AppService {
         {
           sub: payload.sub,
           email: payload.email,
-          roles: roleNames, 
+          roles: roleNames,
           sid: payload.sid,
         },
         {

@@ -6,10 +6,10 @@
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"baseUrl": ".",
-		"paths": {
-			"@shared/*": ["packages/shared/src/*"],
-			"@config/*": ["packages/config/src/*"],
-			"@repo/db": ["packages/db/src"]
-		}
+		// "paths": {
+		// 	"@shared/*": ["packages/shared/src/*"],
+		// 	"@config/*": ["packages/config/src/*"],
+		// 	"@repo/db": ["packages/db/src"]
+		// }
 	}
 }

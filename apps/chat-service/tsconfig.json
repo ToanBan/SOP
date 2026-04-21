@@ -10,7 +10,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2022",
+    "target": "ES2023",
     "sourceMap": true,
     "rootDirs": ["src", "../../packages/db/src"],
     "outDir": "./dist",
@@ -27,6 +27,5 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
   },
-  "include": ["src/**/*", "../../packages/db/src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "drizzle.config.ts"]
+  "include": ["src/**/*", "../../packages/db/src/**/*"]
 }

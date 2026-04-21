@@ -1,5 +1,5 @@
 {
-  "name": "integration-service",
+  "name": "chat-service",
   "version": "0.0.1",
   "description": "",
   "author": "",
@@ -26,12 +26,9 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@repo/db": "workspace:*",
-    "amqplib": "^1.0.3",
     "cookie-parser": "^1.4.7",
-    "node-telegram-bot-api": "^0.67.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "uuid": "^10.0.0"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -41,8 +38,7 @@
     "@nestjs/testing": "^11.0.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
-    "@types/node": "^24.0.0",
-    "@types/node-telegram-bot-api": "^0.64.14",
+    "@types/node": "^24.12.2",
     "@types/supertest": "^7.0.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",

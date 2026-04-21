@@ -1,14 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
 
-
-
-@Controller("integration")
+@Controller("chat")
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
-  getHello() {
-    return this.appService.getHello();
+  async getHello(): Promise<string> {
+    return await this.appService.getHello();
   }
 }

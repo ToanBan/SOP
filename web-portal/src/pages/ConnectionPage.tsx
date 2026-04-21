@@ -1,7 +1,6 @@
 import React, { useState, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { 
-  CheckCircle2, 
   PlusCircle, 
   ExternalLink,
   ShieldCheck,
@@ -13,11 +12,9 @@ import {
   Check,
   Bot,
   Zap,
-  ChevronRight
 } from 'lucide-react';
-
-// --- Components Phụ ---
-
+import handleConnection from '../api/user/handleConnection';
+import Swal from 'sweetalert2';
 const FacebookIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
 );
@@ -26,7 +23,6 @@ const DiscordIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M7.5 7.5c3.5-1 5.5-1 9 0"/><path d="M7 16.5c3.5 1 6.5 1 10 0"/><path d="M2 12c0 4.4 3.6 8 8 8 1.5 0 2.8-.4 4-1.1 1.2.7 2.5 1.1 4 1.1 4.4 0 8-3.6 8-8s-3.6-8-8-8c-1.5 0-2.8.4-4 1.1C10.8 4.4 9.5 4 8 4c-4.4 0-8 3.6-8 8z"/></svg>
 );
 
-// --- Component Modal Hướng Dẫn Telegram ---
 
 interface TelegramModalProps {
   isOpen: boolean;
@@ -59,6 +55,38 @@ const TelegramGuideModal: React.FC<TelegramModalProps> = ({ isOpen, onClose }) =
       desc: "Sau khi hoàn tất, bạn sẽ nhận được một chuỗi ký tự dài (API Token). Hãy dán nó vào khung bên dưới.",
     }
   ];
+
+
+  const handleSubmitConnection = async () => {
+    try {
+      const result = await handleConnection(apiToken);
+      console.log("Connection result:", result);
+      if (result.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Kết nối thành công',
+          text: 'Telegram Bot đã được kết nối thành công với hệ thống.',
+        });
+        onClose();
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Kết nối thất bại',
+          text: result.error || 'Đã có lỗi xảy ra khi kết nối Telegram Bot. Vui lòng thử lại.',
+        });
+      }
+    } catch (error) {
+      console.error("Error connecting Telegram Bot:", error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Kết nối thất bại',
+        text: 'Đã có lỗi xảy ra khi kết nối Telegram Bot. Vui lòng thử lại.',
+      });
+      return { success: false, error: "Failed to connect Telegram Bot" };
+    }
+  }
+
+ 
 
   return (
     <Transition show={isOpen} as={Fragment}>
@@ -143,7 +171,7 @@ const TelegramGuideModal: React.FC<TelegramModalProps> = ({ isOpen, onClose }) =
                       placeholder="Dán token vào đây..."
                       className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-200 bg-white focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-50 shadow-sm transition-all font-medium"
                     />
-                    <button className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-600 transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2 group">
+                    <button onClick={handleSubmitConnection} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-600 transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2 group">
                       <Zap size={18} className="group-hover:animate-pulse" /> Kết nối
                     </button>
                   </div>
