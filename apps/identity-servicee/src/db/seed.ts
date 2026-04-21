@@ -1,9 +1,8 @@
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import { DB_PROVIDER } from '../db/db.provider';
-import { roles } from './schemas/role.schema';
-import { permissions } from './schemas/permissions.schema';
+import { roles, permissions } from '@repo/db';
+import { DB_PROVIDER } from './db.provider';
 @Injectable()
 export class SeedService implements OnModuleInit {
   constructor(@Inject(DB_PROVIDER) private readonly db: any) {}

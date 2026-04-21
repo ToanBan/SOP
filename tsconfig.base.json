@@ -8,7 +8,8 @@
 		"baseUrl": ".",
 		"paths": {
 			"@shared/*": ["packages/shared/src/*"],
-			"@config/*": ["packages/config/src/*"]
+			"@config/*": ["packages/config/src/*"],
+			"@repo/db": ["packages/db/src"]
 		}
 	}
 }

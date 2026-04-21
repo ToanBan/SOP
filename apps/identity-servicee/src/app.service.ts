@@ -7,18 +7,20 @@ import {
 import * as bcrypt from 'bcrypt';
 import { and, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  users,
+  roles,
+  userSessions,
+  userProviders,
+  userRoles,
+} from '@repo/db';
 import { DB_PROVIDER } from './db/db.provider';
-import { users } from './db/schemas/user.schema';
 import type { RegisterDto } from './dto/RegisterDto';
 import { LoginDto } from './dto/LoginDto';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { roles } from './db/schemas/role.schema';
 import * as crypto from 'crypto';
-import { userSessions } from './db/schemas/user_sessions.schema';
-import { userProviders } from './db/schemas/user_providers.schema';
-import { userRoles } from './db/schemas/user_roles.schema';
 @Injectable()
 export class AppService {
   constructor(
