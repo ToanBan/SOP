@@ -8,3 +8,8 @@ export * from "./schemas/user_roles.schema";
 export * from "./schemas/user_sessions.schema";
 export * from "./schemas/channel_accounts.schema";
 export * from "./schemas/integrations.schema";
+export * from "./schemas/conversations.schema";
+export * from "./schemas/messages.schema";
+export * from "./schemas/conversation_participants.schema";
+export * from "./schemas/customers.schema";
+export * from "./schemas/customer_identities.schema";

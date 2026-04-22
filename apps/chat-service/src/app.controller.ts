@@ -1,12 +1,29 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { AppService } from './app.service';
-
-@Controller("chat")
+import { MessageRequestDTO } from './dto/MessageRequestDTO';
+import { UpdateCustomerDTO } from './dto/UpdateCustomer';
+@Controller('chat')
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @Get()
-  async getHello(): Promise<string> {
-    return await this.appService.getHello();
+  @Get('customers')
+  async getCustomers() {
+    return this.appService.getCustomers();
+  }
+
+  @Post('messages')
+  async getMessages(@Body() dto: MessageRequestDTO) {
+    return this.appService.getConversationsByCustomerId(
+      dto.customerId,
+      dto.channelAccountId,
+    );
+  }
+
+  @Put('customer/:customerId')
+  async updateCustomer(
+    @Body() dto: UpdateCustomerDTO,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.appService.updateCustomer(customerId, dto.email, dto.phone);
   }
 }

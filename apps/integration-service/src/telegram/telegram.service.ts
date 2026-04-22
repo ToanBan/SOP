@@ -14,8 +14,9 @@ export class TelegramService {
       throw new BadRequestException('Invalid bot token');
     }
     const bot = data.result;
-    const webhookUrl = `${process.env.BASE_URL}/webhooks/telegram`;
     const channelId = uuidv4();
+    const webhookUrl = `${process.env.BASE_URL}/webhooks/telegram/${channelId}`;
+
     await this.db.insert(channelAccounts).values({
       id: channelId,
       integrationId,

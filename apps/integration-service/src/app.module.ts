@@ -6,6 +6,7 @@ import { WebhookController } from './webhook/webhook.controller';
 import { DbModule } from './db/db.module';
 import { TelegramController } from './telegram/telegram.controller';
 import { TelegramService } from './telegram/telegram.service';
+import { QueueModule } from './queue/queue.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -13,6 +14,7 @@ import { TelegramService } from './telegram/telegram.service';
       envFilePath: '.env',
     }),
     DbModule,
+    QueueModule,
   ],
   controllers: [AppController, WebhookController, TelegramController],
   providers: [AppService, TelegramService],
