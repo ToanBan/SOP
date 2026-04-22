@@ -7,18 +7,14 @@ import {
 import * as bcrypt from 'bcrypt';
 import { and, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { users, roles, userSessions, userProviders, userRoles } from '@repo/db';
 import { DB_PROVIDER } from './db/db.provider';
-import { users } from './db/schemas/user.schema';
 import type { RegisterDto } from './dto/RegisterDto';
 import { LoginDto } from './dto/LoginDto';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-import { roles } from './db/schemas/role.schema';
 import * as crypto from 'crypto';
-import { userSessions } from './db/schemas/user_sessions.schema';
-import { userProviders } from './db/schemas/user_providers.schema';
-import { userRoles } from './db/schemas/user_roles.schema';
 @Injectable()
 export class AppService {
   constructor(
@@ -26,6 +22,8 @@ export class AppService {
     private jwtService: JwtService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
+
+
 
   async register(dto: RegisterDto) {
     try {
@@ -38,6 +36,10 @@ export class AppService {
 
         if (exist.length > 0) {
           throw new BadRequestException('Email already exists');
+        }
+
+        if (dto.password !== dto.confirmPassword) {
+          throw new BadRequestException('Passwords do not match');
         }
 
         const hashed = await bcrypt.hash(dto.password, 10);
@@ -92,7 +94,7 @@ export class AppService {
         .from(users)
         .innerJoin(userRoles, eq(users.id, userRoles.userId))
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(eq(users.email, dto.email))
+        .where(eq(users.email, dto.email));
 
       const user = results[0];
 
@@ -200,7 +202,7 @@ export class AppService {
         {
           sub: payload.sub,
           email: payload.email,
-          roles: roleNames, 
+          roles: roleNames,
           sid: payload.sid,
         },
         {

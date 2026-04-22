@@ -1,11 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DB_PROVIDER } from 'src/db/db.provider';
-import { rolePermissions } from 'src/db/schemas/role_permissions.schema';
-import { eq, inArray } from 'drizzle-orm/sql/expressions/conditions';
-import { permissions } from 'src/db/schemas/permissions.schema';
-import { users } from 'src/db/schemas/user.schema';
-import { roles } from 'src/db/schemas/role.schema';
-import { userRoles } from 'src/db/schemas/user_roles.schema';
+import {
+  rolePermissions,
+  permissions,
+  users,
+  roles,
+  userRoles,
+} from '@repo/db';
+import { eq, inArray } from 'drizzle-orm';
 @Injectable()
 export class RbacService {
   constructor(@Inject(DB_PROVIDER) private readonly db: any) {}

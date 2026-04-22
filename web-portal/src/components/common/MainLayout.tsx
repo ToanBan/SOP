@@ -8,7 +8,8 @@ import {
   ShoppingBag,
   Users,
   ShieldCheck,
-  User
+  User, 
+  BluetoothConnectedIcon
 } from "lucide-react";
 import type React from "react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -21,6 +22,12 @@ const MainLayout: React.FC = () => {
       name: "Dashboard",
       icon: <LayoutDashboard size={20} />,
       path: "/dashboard",
+    },
+
+    {
+      name: "Connections",
+      icon: <BluetoothConnectedIcon size={20} />,
+      path: "/connections",
     },
     {
       name: "Hội thoại",
