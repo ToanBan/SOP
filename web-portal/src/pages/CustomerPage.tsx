@@ -1,8 +1,33 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import getCustomers from "../api/customer/getCustomers";
+
+
+interface Customer{
+	id:string;
+	name:string;
+	platform:string;
+	phone?:string;
+	email?:string;
+}
 
 const CustomerPage = () => {
-	return (
-		<div className="p-8">
+  const [customers, setCustomers] = useState<Customer[]>([]);
+
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const response = await getCustomers();
+        setCustomers(response.data);
+      } catch (error) {
+        console.error("Failed to fetch customers:", error);
+      }
+    };
+
+    fetchCustomers();
+  }, []);
+
+  return (
+    <div className="p-8">
 			<div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
 				<h3 className="text-2xl font-black tracking-tight">CRM - Khách hàng</h3>
 				<div className="flex gap-2">
@@ -18,9 +43,9 @@ const CustomerPage = () => {
 			</div>
 
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-				{[1, 2, 3, 4, 5, 6].map((i) => (
+				{customers.map((customer, i) => (
 					<div
-						key={i}
+						key={customer.id}
 						className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition group"
 					>
 						<div className="flex items-center gap-4 mb-4">
@@ -28,14 +53,14 @@ const CustomerPage = () => {
 								K{i}
 							</div>
 							<div>
-								<h4 className="font-bold">Khách hàng mẫu {i}</h4>
-								<p className="text-xs text-slate-400">Hồ Chí Minh, Việt Nam</p>
+								<h4 className="font-bold">{customer.name}</h4>
+								<p className="text-xs text-slate-400">{customer.platform}</p>
 							</div>
 						</div>
 						<div className="space-y-3 py-4 border-y border-slate-50 mb-4">
 							<div className="flex justify-between text-sm">
 								<span className="text-slate-400">Nguồn:</span>
-								<span className="font-bold text-blue-600">Facebook</span>
+								<span className="font-bold text-blue-600">{customer.platform}</span>
 							</div>
 							<div className="flex justify-between text-sm">
 								<span className="text-slate-400">Tổng chi tiêu:</span>

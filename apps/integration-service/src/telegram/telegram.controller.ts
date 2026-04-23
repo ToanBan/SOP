@@ -10,4 +10,5 @@ export class TelegramController {
     async connectTelegram(@Body() body: { botToken: string, integrationId: string }) {
         return this.telegramService.connectTelegram(body.botToken, body.integrationId);
     }
+
 }

@@ -7,6 +7,7 @@ import {
   conversations,
   conversationParticipants,
   messages,
+  channelAccounts,
 } from '@repo/db';
 import { eq, and, desc, asc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,8 +28,9 @@ export class AppService implements OnModuleInit {
     const exchange = 'chat_exchange';
 
     await channel.assertExchange(exchange, 'topic', { durable: true });
-    const q = await channel.assertQueue('chat_queue', { durable: true });
-    await channel.bindQueue(q.queue, exchange, 'message.*');
+    const q = await channel.assertQueue('chat_queue_v2', { durable: true });
+    await channel.purgeQueue(q.queue);
+    await channel.bindQueue(q.queue, exchange, 'message.text');
 
     channel.consume(q.queue, async (msg) => {
       if (!msg) return;
@@ -102,7 +104,6 @@ export class AppService implements OnModuleInit {
               lastMessageAt: new Date(),
             });
 
-            // Tạo Participant
             await tx.insert(conversationParticipants).values({
               id: uuidv4(),
               conversationId: currentConversationId,
@@ -117,7 +118,6 @@ export class AppService implements OnModuleInit {
               .where(eq(conversations.id, currentConversationId));
           }
 
-          // 3. Kiểm tra trùng tin nhắn và Lưu tin nhắn mới
           const messageResults = await tx
             .select()
             .from(messages)
@@ -139,14 +139,14 @@ export class AppService implements OnModuleInit {
               metadata: JSON.stringify(raw),
             });
             console.log(
-              `✅ [SUCCESS] Saved message: ${payload.messageExternalId}`,
+              `[SUCCESS] Saved message: ${payload.messageExternalId}`,
             );
           }
         });
 
         channel.ack(msg);
       } catch (error) {
-        console.error('❌ [ERROR] Consumer Transaction:');
+        console.error('[ERROR] Consumer Transaction:', error);
       }
     });
   }
@@ -177,6 +177,56 @@ export class AppService implements OnModuleInit {
     }
   }
 
+  async getConversationByCustomer(
+    customerId: string,
+    channelAccountId: string,
+  ) {
+    try {
+      const result = await this.db
+        .select({
+          id: conversations.id,
+          title: conversations.title,
+          lastMessageAt: conversations.lastMessageAt,
+        })
+        .from(conversations)
+        .innerJoin(
+          conversationParticipants,
+          eq(conversations.id, conversationParticipants.conversationId),
+        )
+        .where(
+          and(
+            eq(conversationParticipants.customerId, customerId),
+            eq(conversations.channelAccountId, channelAccountId),
+          ),
+        )
+        .orderBy(desc(conversations.lastMessageAt))
+        .limit(1);
+
+      return { success: true, data: result[0] || null };
+    } catch (error) {
+      return { success: false, message: 'Failed to get conversation' };
+    }
+  }
+
+  async getMessagesByConversationId(conversationId: string) {
+    try {
+      const result = await this.db
+        .select({
+          id: messages.id,
+          content: messages.content,
+          senderType: messages.senderType,
+          createdAt: messages.createdAt,
+        })
+        .from(messages)
+        .where(eq(messages.conversationId, conversationId))
+        .orderBy(asc(messages.createdAt));
+
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, message: 'Failed to get messages' };
+    }
+  }
+
   async getConversationsByCustomerId(
     customerId: string,
     channelAccountId: string,
@@ -189,6 +239,7 @@ export class AppService implements OnModuleInit {
           type: messages.type,
           mediaUrl: messages.mediaUrl,
           createdAt: messages.createdAt,
+          conversationId: messages.conversationId,
         })
         .from(messages)
         .innerJoin(conversations, eq(messages.conversationId, conversations.id))
@@ -237,6 +288,65 @@ export class AppService implements OnModuleInit {
     } catch (error) {
       console.error('Update Customer Error:', error);
       return { success: false, message: 'Lỗi hệ thống khi cập nhật' };
+    }
+  }
+
+  async replyToCustomer(
+    conversationId: string,
+    message: string,
+    channelAccountId: string,
+    file: File | null,
+  ) {
+    try {
+      const messageId = uuidv4();
+      await this.db.insert(messages).values({
+        id: messageId,
+        channelAccountId,
+        conversationId,
+        senderType: 'agent',
+        senderId: 'agent',
+        type: file ? 'file' : 'text',
+        content: message,
+        mediaUrl: file ? `https://fakeurl.com/${file.name}` : null,
+        externalMessageId: messageId,
+        metadata: JSON.stringify({ sentFrom: 'web' }),
+      });
+
+      const conversation = await this.db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.id, conversationId))
+        .limit(1);
+
+      if (!conversation[0]) {
+        throw new Error('Conversation not found');
+      }
+
+      const externalConversationId = conversation[0].externalConversationId;
+      const channel = await this.db
+        .select()
+        .from(channelAccounts)
+        .where(eq(channelAccounts.id, channelAccountId))
+        .limit(1);
+
+      await this.queue.channel.publish(
+        'chat_exchange',
+        'message.reply',
+        Buffer.from(
+          JSON.stringify({
+            chatId: externalConversationId,
+            message,
+            botToken:channel[0].accessToken,
+            file: file ? { name: file.name, type: file.type } : null,
+            senderId: 'agent',
+          }),
+        ),
+        { persistent: true },
+      );
+      return { success: true, message: 'Reply sent successfully' };
+    } catch (error) {
+      console.error('Reply to Customer Error:', error);
+      return { success: false, message: 'Failed to reply to customer' };
     }
   }
 }

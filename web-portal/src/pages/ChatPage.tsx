@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useMemo } from "react";
 import getCustomers from "../api/customer/getCustomers";
-import getMessageByCustomer from "../api/customer/getMessageByCustomer";
 import updateCustomer from "../api/customer/updateCustomer";
 export type PlatformType = "telegram" | "messenger" | "zalo" | string;
 import Swal from "sweetalert2";
+import replyCustomer from "../api/customer/replyCustomer";
+import getConversationByCustomer from "../api/customer/getConversationByCustomer";
+import getMessagesByConversation from "../api/customer/getMessagesByConversation";
 interface Customer {
   id: string;
   name: string;
@@ -179,6 +181,9 @@ const ChatPage: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [conversationId, setConversationId] = useState<string>("");
+  const [messageInput, setMessageInput] = useState<string>("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const fetchCustomers = async () => {
     try {
@@ -204,23 +209,37 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     const fetchMessages = async () => {
       if (!selectedCustomer) return;
+
       setLoadingMessages(true);
+
       try {
-        const res = await getMessageByCustomer(
+        const convoRes = await getConversationByCustomer(
           selectedCustomer.id,
           selectedCustomer.channelAccountId,
         );
-        if (res.success) {
-          setMessages(res.data);
+
+        console.log(convoRes.data);
+
+       
+
+        const conversationId = convoRes.data.id
+        console.log("hhhehehe", conversationId);
+        setConversationId(conversationId);
+        const msgRes = await getMessagesByConversation(conversationId);
+        console.log(msgRes.data);
+        if (msgRes.success) {
+          setMessages(msgRes.data);
         } else {
           setMessages([]);
         }
       } catch (error) {
+        console.error(error);
         setMessages([]);
       } finally {
         setLoadingMessages(false);
       }
     };
+
     fetchMessages();
   }, [selectedId, selectedCustomer?.channelAccountId]);
 
@@ -240,6 +259,34 @@ const ChatPage: React.FC = () => {
         return "✈️";
       default:
         return "👤";
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedCustomer || !conversationId) return;
+    if (!messageInput.trim() && !selectedFile) return;
+    
+    try {
+      const res = await replyCustomer(
+        conversationId,
+        messageInput,
+        selectedCustomer.channelAccountId,
+        selectedFile ? selectedFile : null,
+      );
+
+      if (res.success) {
+        setMessageInput("");
+        setSelectedFile(null);
+        const msgRes = await getMessagesByConversation(conversationId);
+        if (msgRes.success) {
+          setMessages(msgRes.data);
+        }
+      } else {
+        Swal.fire("Lỗi", "Không thể gửi tin nhắn", "error");
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      Swal.fire("Lỗi", "Đã có lỗi xảy ra khi kết nối server", "error");
     }
   };
 
@@ -350,7 +397,7 @@ const ChatPage: React.FC = () => {
                 messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.senderType === "admin" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                    className={`flex ${msg.senderType === "customer" ? "justify-start" : "justify-end"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
                   >
                     <div
                       className={`px-4 py-3 rounded-[1.25rem] max-w-[70%] text-sm shadow-sm leading-relaxed ${
@@ -379,16 +426,85 @@ const ChatPage: React.FC = () => {
             </section>
 
             <footer className="p-4 bg-white border-t border-slate-100">
-              <div className="flex items-end gap-3 bg-slate-50 p-2 rounded-[1.5rem] focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/5 focus-within:border-indigo-200 border border-transparent transition-all">
-                <textarea
-                  rows={1}
-                  placeholder={`Nhắn tin cho ${selectedCustomer.name}...`}
-                  className="flex-1 bg-transparent border-none focus:ring-0 px-3 py-2 text-sm resize-none max-h-32"
-                />
-                <button className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-90 flex items-center justify-center">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
+                }}
+                className="flex items-end gap-3 bg-slate-50 p-2 rounded-[1.5rem] focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-500/5 focus-within:border-indigo-200 border border-transparent transition-all"
+              >
+                {/* PHẦN CHỌN FILE */}
+                <div className="flex items-center ps-2">
+                  <input
+                    type="file"
+                    id="file-upload"
+                    className="hidden"
+                    onChange={(e) =>
+                      setSelectedFile(e.target.files?.[0] || null)
+                    }
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className={`p-2.5 rounded-xl cursor-pointer transition-all ${
+                      selectedFile
+                        ? "text-indigo-600 bg-indigo-50"
+                        : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                    }`}
+                    title={selectedFile ? selectedFile.name : "Đính kèm tệp"}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.5l-10.74 10.74a1.5 1.5 0 11-2.12-2.12l10.103-10.103"
+                      />
+                    </svg>
+                  </label>
+                </div>
+
+                <div className="flex-1 flex flex-col">
+                  {selectedFile && (
+                    <span className="text-[10px] font-bold text-indigo-600 px-3 pt-1 truncate max-w-[200px]">
+                      📎 {selectedFile.name}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFile(null)}
+                        className="ml-2 text-red-400"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                  <textarea
+                    rows={1}
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder={`Nhắn tin cho ${selectedCustomer.name}...`}
+                    className="bg-transparent border-none focus:ring-0 px-1 py-2 text-sm resize-none max-h-32"
+                  />
+                </div>
+
+                {/* NÚT GỬI */}
+                <button
+                  type="submit"
+                  className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-90 flex items-center justify-center"
+                >
                   <span className="transform -rotate-12">🚀</span>
                 </button>
-              </div>
+              </form>
             </footer>
           </>
         ) : (
@@ -449,7 +565,7 @@ const ChatPage: React.FC = () => {
 
       {/* MODAL CẬP NHẬT */}
       <UpdateCustomerModal
-      onUpdate={fetchCustomers}
+        onUpdate={fetchCustomers}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         customer={selectedCustomer}
