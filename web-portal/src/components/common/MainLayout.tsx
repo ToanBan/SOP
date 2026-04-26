@@ -35,9 +35,9 @@ const MainLayout: React.FC = () => {
       path: "/chat",
     },
     {
-      name: "Đơn hàng",
+      name: "Nền tảng",
       icon: <ShoppingBag size={20} />,
-      path: "/orders",
+      path: "/integrations",
     },
     {
       name: "Khách hàng",

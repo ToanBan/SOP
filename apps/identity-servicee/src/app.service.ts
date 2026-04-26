@@ -5,9 +5,19 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import { users, roles, userSessions, userProviders, userRoles } from '@repo/db';
+import {
+  users,
+  roles,
+  userSessions,
+  userProviders,
+  userRoles,
+  messages,
+  customers,
+  conversations,
+  channelAccounts
+} from '@repo/db';
 import { DB_PROVIDER } from './db/db.provider';
 import type { RegisterDto } from './dto/RegisterDto';
 import { LoginDto } from './dto/LoginDto';
@@ -22,8 +32,6 @@ export class AppService {
     private jwtService: JwtService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
-
-
 
   async register(dto: RegisterDto) {
     try {
@@ -466,4 +474,6 @@ export class AppService {
       name: googleUser.name,
     });
   }
+
+
 }

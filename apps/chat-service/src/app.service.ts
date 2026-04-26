@@ -29,7 +29,6 @@ export class AppService implements OnModuleInit {
 
     await channel.assertExchange(exchange, 'topic', { durable: true });
     const q = await channel.assertQueue('chat_queue_v2', { durable: true });
-    await channel.purgeQueue(q.queue);
     await channel.bindQueue(q.queue, exchange, 'message.text');
 
     channel.consume(q.queue, async (msg) => {
@@ -38,6 +37,8 @@ export class AppService implements OnModuleInit {
       try {
         const payload = JSON.parse(msg.content.toString());
         const { raw } = payload;
+        console.log('rawwwwwww', raw);
+        console.log('payloadddddđ', payload);
 
         await this.db.transaction(async (tx) => {
           const identityResults = await tx
@@ -60,7 +61,7 @@ export class AppService implements OnModuleInit {
               id: currentCustomerId,
               name:
                 `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}`.trim() ||
-                'Telegram User',
+                'Discord User',
               lastSeenAt: new Date(),
             });
 
@@ -336,7 +337,8 @@ export class AppService implements OnModuleInit {
           JSON.stringify({
             chatId: externalConversationId,
             message,
-            botToken:channel[0].accessToken,
+            botToken: channel[0].accessToken,
+            platform: channel[0].platform,
             file: file ? { name: file.name, type: file.type } : null,
             senderId: 'agent',
           }),

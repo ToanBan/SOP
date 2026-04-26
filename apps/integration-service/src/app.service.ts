@@ -1,6 +1,14 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { DB_PROVIDER } from './db/db.provider';
 import { QUEUE_PROVIDER } from './queue/queue.provider';
+import {
+  integrations,
+  channelAccounts,
+  messages,
+  customers,
+  users,
+} from '@repo/db';
+import { count, desc, eq } from 'drizzle-orm';
 
 @Injectable()
 export class AppService implements OnModuleInit {
@@ -13,9 +21,40 @@ export class AppService implements OnModuleInit {
     await this.startConsumer();
   }
 
+  async getAllIntegrations() {
+    try {
+      const integrationDb = await this.db.select().from(integrations);
+      if (!integrationDb) {
+        throw new Error('Not found');
+      }
+
+      return { success: true, data: integrationDb };
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: `failed ${error}` };
+    }
+  }
+
+  async getChannelAccountByIntegrationId(integrationId: string) {
+    try {
+      const chanelAccountDb = await this.db
+        .select()
+        .from(channelAccounts)
+        .where(eq(channelAccounts.integrationId, integrationId));
+
+      if (!chanelAccountDb) {
+        throw new Error('Not found');
+      }
+
+      return { success: true, data: chanelAccountDb };
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: `failed ${error}` };
+    }
+  }
+
   async handleSendTelegram(data: any) {
     const { botToken, chatId, message } = data;
-    console.log('FULL DATA:', JSON.stringify(data, null, 2));
 
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     const results = await fetch(url, {
@@ -23,10 +62,25 @@ export class AppService implements OnModuleInit {
         'Content-Type': 'application/json',
       },
       method: 'POST',
-      body: JSON.stringify({ chat_id:chatId, text: message }),
+      body: JSON.stringify({ chat_id: chatId, text: message }),
     });
 
     console.log(await results.json());
+  }
+
+  async handleSendDiscord(data: any) {
+    const { botToken, chatId, message } = data;
+    const url = `https://discord.com/api/v10/channels/${chatId}/messages`;
+    const result = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content: message }),
+    });
+
+    console.log(await result.json());
   }
 
   async startConsumer() {
@@ -46,10 +100,13 @@ export class AppService implements OnModuleInit {
 
       try {
         const payload = JSON.parse(msg.content.toString());
-
         console.log('Integration received:', payload);
 
-        await this.handleSendTelegram(payload);
+        if (payload.platform === 'telegram') {
+          await this.handleSendTelegram(payload);
+        } else if (payload.platform === 'discord') {
+          await this.handleSendDiscord(payload);
+        }
 
         channel.ack(msg);
       } catch (error) {
@@ -92,6 +149,54 @@ export class AppService implements OnModuleInit {
         success: false,
         error: 'Failed to push message to queue',
       };
+    }
+  }
+
+  async getStatis() {
+    try {
+      const countMessage = (
+        await this.db.select({ total: count() }).from(messages)
+      )[0].total;
+
+      const countStaff = (
+        await this.db.select({ total: count() }).from(users)
+      )[0].total;
+
+      const countCustomer = (
+        await this.db.select({ total: count() }).from(customers)
+      )[0].total;
+
+      const customersDb = await this.db
+        .select()
+        .from(customers)
+        .orderBy(desc(customers.createdAt))
+        .limit(4);
+
+      const platformStats = await this.db
+        .select({
+          platform: channelAccounts.platform,
+          total: count(),
+        })
+        .from(messages)
+        .innerJoin(
+          channelAccounts,
+          eq(messages.channelAccountId, channelAccounts.id),
+        )
+        .groupBy(channelAccounts.platform);
+
+      return {
+        success: true,
+        data: {
+          countMessage,
+          countCustomer,
+          countStaff,
+          platformStats,
+          customersDb,
+        },
+      };
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: `failed ${error}` };
     }
   }
 }

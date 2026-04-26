@@ -274,6 +274,8 @@ const ChatPage: React.FC = () => {
         selectedFile ? selectedFile : null,
       );
 
+      console.log(res);
+
       if (res.success) {
         setMessageInput("");
         setSelectedFile(null);
@@ -289,6 +291,8 @@ const ChatPage: React.FC = () => {
       Swal.fire("Lỗi", "Đã có lỗi xảy ra khi kết nối server", "error");
     }
   };
+
+  console.log(selectedCustomer);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900">
