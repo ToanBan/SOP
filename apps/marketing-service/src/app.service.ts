@@ -122,34 +122,23 @@ export class AppService {
         .where(inArray(conversations.id, conversationIds));
 
       for (const target of targetsWithInfo) {
-        if (mediaUrls.length > 0) {
-          for (const media of mediaUrls) {
-            this.queue.channel.publish(
-              'chat_exchange',
-              'message.reply',
-              Buffer.from(
-                JSON.stringify({
-                  platform: target.platform,
-                  botToken: target.botToken,
-                  chatId: target.externalConversationId,
-                  message: content,
-                  mediaUrl: media
-                }),
-              ),
-              { persistent: true },
-            );
-          }
-        } else {
+        const mediasToSend = mediaUrls.length > 0 ? mediaUrls : [null];
+
+        for (let i = 0; i < mediasToSend.length; i++) {
+          const mediaUrl = mediasToSend[i];
+
+          const isLast = i === mediasToSend.length - 1;
+
           this.queue.channel.publish(
             'chat_exchange',
-            'message.reply',
+            'message.campaign',
             Buffer.from(
               JSON.stringify({
                 platform: target.platform,
                 botToken: target.botToken,
                 chatId: target.externalConversationId,
-                message: content,
-                mediaUrl: null,
+                message: isLast ? content : '',
+                mediaUrl,
               }),
             ),
             { persistent: true },

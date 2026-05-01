@@ -25,10 +25,11 @@ interface DistributionProps {
   title: string;
   externalConversationId: string;
   conversationType: string;
+  platform: string;
 }
 
-const getPlatformIcon = (type: string) => {
-  switch (type?.toLowerCase()) {
+const getPlatformIcon = (platform: string) => {
+  switch (platform?.toLowerCase()) {
     case "telegram":
       return <Send size={18} />;
     case "discord":
@@ -53,30 +54,57 @@ const DistributionCard: React.FC<{
         : "bg-white border-slate-100 hover:border-slate-300 hover:bg-slate-50"
     }`}
   >
-    <div className="flex items-center gap-4">
+    <div className="flex items-start gap-4">
+      {/* Icon Platform */}
       <div
-        className={`p-3 rounded-2xl transition-colors ${
+        className={`p-3 rounded-2xl transition-colors shrink-0 ${
           isSelected
             ? "bg-indigo-600 text-white"
             : "bg-slate-100 text-slate-500 group-hover:bg-white"
         }`}
       >
-        {getPlatformIcon(item.conversationType)}
+        {getPlatformIcon(item.platform)}
       </div>
 
       <div className="flex-1 min-w-0">
+        {/* Title */}
         <h4
-          className={`font-bold text-sm truncate ${isSelected ? "text-indigo-900" : "text-slate-700"}`}
+          className={`font-bold text-sm truncate mb-0.5 ${
+            isSelected ? "text-indigo-900" : "text-slate-700"
+          }`}
         >
           {item.title || "Kênh không tên"}
         </h4>
-        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
-          {item.conversationType}
-        </p>
+
+        {/* Thông tin chi tiết: Platform | ID Phòng */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                isSelected
+                  ? "bg-indigo-200 text-indigo-700"
+                  : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {item.platform}
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium italic">
+              Type: {item.conversationType}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 text-slate-400">
+            <Search size={10} />
+            <p className="text-[10px] font-mono">
+              ID: {item.externalConversationId}
+            </p>
+          </div>
+        </div>
       </div>
 
+      {/* Checkbox status */}
       <div
-        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all mt-1 ${
           isSelected ? "bg-indigo-600 border-indigo-600" : "border-slate-200"
         }`}
       >
@@ -85,10 +113,9 @@ const DistributionCard: React.FC<{
     </div>
   </div>
 );
-
 const MarketingPage: React.FC = () => {
   const [content, setContent] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>(""); 
+  const [endDate, setEndDate] = useState<string>("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [distribution, setDistribution] = useState<DistributionProps[]>([]);
@@ -129,7 +156,7 @@ const MarketingPage: React.FC = () => {
         title: "Thiếu nội dung!",
         text: "Vui lòng nhập nội dung trước khi xuất bản.",
         icon: "warning",
-        confirmButtonColor: "#6366f1", 
+        confirmButtonColor: "#6366f1",
       });
       return;
     }
@@ -154,8 +181,13 @@ const MarketingPage: React.FC = () => {
     });
 
     try {
-      const result = await createCampaign(content,  selectedPlatforms, endDate, files);
-      
+      const result = await createCampaign(
+        content,
+        selectedPlatforms,
+        endDate,
+        files,
+      );
+
       if (result && result.success) {
         Swal.fire({
           title: "Thành công!",
@@ -190,6 +222,7 @@ const MarketingPage: React.FC = () => {
     item.title?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
+  console.log(distribution);
   return (
     <div className="min-h-screen bg-[#f8fafc] py-12 px-6 lg:px-8 font-sans">
       <div className="max-w-6xl mx-auto">
@@ -229,31 +262,33 @@ const MarketingPage: React.FC = () => {
             <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden focus-within:border-indigo-400 transition-colors">
               <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
                 <div className="flex gap-2">
-                    <button
-                        title="Định dạng text"
-                        className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
-                    >
-                        <Type size={20} />
-                    </button>
-                    <button
-                        title="Thêm ảnh"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
-                    >
-                        <ImageIcon size={20} />
-                    </button>
+                  <button
+                    title="Định dạng text"
+                    className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                  >
+                    <Type size={20} />
+                  </button>
+                  <button
+                    title="Thêm ảnh"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                  >
+                    <ImageIcon size={20} />
+                  </button>
                 </div>
 
                 {/* Date Input Field */}
                 <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-100 shadow-sm">
-                    <Clock size={16} className="text-indigo-500" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Kết thúc:</span>
-                    <input 
-                        type="date" 
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="text-xs font-bold text-slate-600 outline-none bg-transparent cursor-pointer"
-                    />
+                  <Clock size={16} className="text-indigo-500" />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                    Kết thúc:
+                  </span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="text-xs font-bold text-slate-600 outline-none bg-transparent cursor-pointer"
+                  />
                 </div>
               </div>
 

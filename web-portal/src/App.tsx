@@ -17,6 +17,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import ConnectionPage from "./pages/ConnectionPage";
 import PostPage from "./pages/PostPage";
 import MarketingPage from "./pages/MarketingPage";
+import CampaignPage from "./pages/CampaignPage";
 function App() {
   return (
     <Router>
@@ -29,8 +30,9 @@ function App() {
           <Route path="chat" element={<ChatPage />} />
           <Route path="customers" element={<CustomerPage />} />
           <Route path="connections" element={<ConnectionPage />} />
-          <Route path="marketing" element={<MarketingPage/>}/>
+          <Route path="marketing" element={<MarketingPage />} />
           <Route path="posts" element={<PostPage />} />
+          <Route path="campaign" element={<CampaignPage />} />
           <Route
             path="admin/sales"
             element={

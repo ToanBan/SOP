@@ -100,12 +100,12 @@ export class AppService implements OnModuleInit {
     });
 
     await channel.bindQueue(q.queue, exchange, 'message.reply');
+    await channel.bindQueue(q.queue, exchange, 'message.campaign')
     channel.consume(q.queue, async (msg) => {
       if (!msg) return;
 
       try {
         const payload = JSON.parse(msg.content.toString());
-        console.log('Integration received:', payload);
 
         if (payload.platform === 'telegram') {
           await this.handleSendTelegram(payload);
