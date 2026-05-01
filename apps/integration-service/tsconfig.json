@@ -18,7 +18,8 @@
     "paths": {
       "src/*": ["src/*"],
       "@repo/db": ["../../packages/db/src/index"], 
-      "@repo/queue": ["../../packages/queue/src/index"]
+      "@repo/queue": ["../../packages/queue/src/index"],
+      "@repo/auth": ["../../packages/auth/src/index"]
     },
     "incremental": true,
     "skipLibCheck": true,

@@ -1,14 +1,28 @@
-import { Body, Controller, Post } from "@nestjs/common";
-import { TelegramService } from "./telegram.service";
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { TelegramService } from './telegram.service';
+import { DecodeAuthGuard, CurrentUser, CheckRole, ROLES} from '@repo/auth';
 
 @Controller('integration')
 export class TelegramController {
-    constructor(private readonly telegramService: TelegramService){}
+  constructor(private readonly telegramService: TelegramService) {}
+
+  @Post('telegram/connect')
+  @UseGuards(DecodeAuthGuard, CheckRole)
+  @ROLES('admin')
+  async connectTelegram(
+    @CurrentUser('sub') userId: string,
+    @Body() body: { botToken: string},
+  ) {
+    return this.telegramService.connectTelegram(
+      body.botToken,
+      userId
+    );
+  }
 
 
-    @Post('telegram/connect')
-    async connectTelegram(@Body() body: { botToken: string, integrationId: string }) {
-        return this.telegramService.connectTelegram(body.botToken, body.integrationId);
-    }
-
+  @Get("me")
+  @UseGuards(DecodeAuthGuard)
+  async getProfile(@CurrentUser('roles') roles:string[]){
+    return roles
+  }
 }

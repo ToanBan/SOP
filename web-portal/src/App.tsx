@@ -16,7 +16,7 @@ import AdminRole from "./pages/AdminRole";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ConnectionPage from "./pages/ConnectionPage";
 import PostPage from "./pages/PostPage";
-import IntegrationPage from "./pages/IntegrationPage";
+import MarketingPage from "./pages/MarketingPage";
 function App() {
   return (
     <Router>
@@ -27,9 +27,9 @@ function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="chat" element={<ChatPage />} />
-          <Route path="integrations" element={<IntegrationPage />} />
           <Route path="customers" element={<CustomerPage />} />
           <Route path="connections" element={<ConnectionPage />} />
+          <Route path="marketing" element={<MarketingPage/>}/>
           <Route path="posts" element={<PostPage />} />
           <Route
             path="admin/sales"

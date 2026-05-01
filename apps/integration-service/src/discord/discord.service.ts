@@ -30,12 +30,15 @@ export class DiscordService implements OnModuleInit {
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.DirectMessageTyping,
+        GatewayIntentBits.DirectMessageReactions,
       ],
       partials: [
         Partials.Channel,
         Partials.Message,
         Partials.User,
         Partials.GuildMember,
+        Partials.Reaction,
       ],
     });
 
@@ -43,26 +46,15 @@ export class DiscordService implements OnModuleInit {
       console.log(`Kết nối thành công! Bot: ${this.client.user?.tag}`);
     });
 
-    this.client.on('messageCreate', async (message) => {
-      if (message.partial) {
-        try {
-          await message.fetch();
-        } catch (err) {
-          console.error('Không fetch được message:', err);
-          return;
-        }
-      }
+    this.client.on('raw', async (data) => {
+      if (data.t !== 'MESSAGE_CREATE') return;
 
-      console.log(message);
-
-      if (message.author.bot) return;
+      if (data.d?.author?.bot) return;
 
       try {
         const botId = this.client.user?.id;
-        if (!botId) {
-          console.error('Bot chưa ready');
-          return;
-        }
+        if (!botId) return;
+
         const [channelAccount] = await this.db
           .select()
           .from(channelAccounts)
@@ -74,7 +66,30 @@ export class DiscordService implements OnModuleInit {
           return;
         }
 
-        const normalized = this.normalizeMessage(channelAccount.id, message);
+        const d = data.d;
+        console.log("dataaa", data);
+        const attachment = d.attachments?.[0];
+        console.log("attttt", attachment);
+        let type = 'text';
+        let mediaUrl = null;
+
+        if (attachment) {
+          mediaUrl = attachment.proxy_url;
+          type = "media"
+        }
+        const conversationType = d.guild_id ? 'channel' : 'direct';
+        const normalized = {
+          channelId: channelAccount.id,
+          platform: 'discord',
+          conversationExternalId: d.channel_id,
+          customerExternalId: d.author?.id,
+          messageExternalId: d.id,
+          conversationType,
+          type,
+          text: d.content || null,
+          mediaUrl,
+          raw: d,
+        };
 
         await this.appService.pushMessageToQueue(normalized);
       } catch (err) {
@@ -82,6 +97,8 @@ export class DiscordService implements OnModuleInit {
       }
     });
 
+
+    
     this.client.on('error', (error) => {
       console.error('Lỗi Discord Client:', error);
     });
@@ -118,14 +135,14 @@ export class DiscordService implements OnModuleInit {
     };
   }
 
-  async connectDiscord(botToken: string, integrationId: string) {
+  async connectDiscord(botToken: string, userId: string) {
     try {
       const res = await fetch(`https://discord.com/api/v10/users/@me`, {
         headers: { Authorization: `Bot ${botToken}` },
       });
       const bot = await res.json();
 
-      console.log("botttt", bot);
+      console.log('botttt', bot);
       if (res.status !== 200)
         throw new BadRequestException('Invalid Discord bot token');
 
@@ -144,10 +161,9 @@ export class DiscordService implements OnModuleInit {
         },
       );
 
-    
       const guilds = await guildsRes.json();
-      console.log("guidddddddd", guilds);
-      const guildId = guilds[0].id; 
+      console.log('guidddddddd', guilds);
+      const guildId = guilds[0].id;
 
       const channelsRes = await fetch(
         `https://discord.com/api/v10/guilds/${guildId}/channels`,
@@ -157,6 +173,7 @@ export class DiscordService implements OnModuleInit {
       );
       const channels = await channelsRes.json();
 
+      console.log('channell', channels);
       const textChannel = channels.find((c: any) => c.type === 0);
 
       const webhookRes = await fetch(
@@ -171,17 +188,18 @@ export class DiscordService implements OnModuleInit {
         },
       );
       const webhook = await webhookRes.json();
-      console.log("đạhạkdksa", webhook);
+
+      console.log('đạhạkdksa', webhook);
 
       const channelId = uuidv4();
       await this.db.insert(channelAccounts).values({
         id: channelId,
-        integrationId,
+        userId,
         platform: 'discord',
         externalId: bot.id,
         name: bot.username,
         accessToken: botToken,
-        webhookUrl:webhook.url, // ← tự động lưu
+        webhookUrl: webhook.url,
         status: 'active',
       });
 

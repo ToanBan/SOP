@@ -25,11 +25,13 @@ export class AppService implements OnModuleInit {
 
   async startConsumer() {
     const channel = this.queue.channel;
+    await channel.prefetch(10);
     const exchange = 'chat_exchange';
 
     await channel.assertExchange(exchange, 'topic', { durable: true });
-    const q = await channel.assertQueue('chat_queue_v2', { durable: true });
+    const q = await channel.assertQueue('chat_queue_v3', { durable: true });
     await channel.bindQueue(q.queue, exchange, 'message.text');
+    await channel.bindQueue(q.queue, exchange, 'message.media.processed');
 
     channel.consume(q.queue, async (msg) => {
       if (!msg) return;
@@ -37,9 +39,6 @@ export class AppService implements OnModuleInit {
       try {
         const payload = JSON.parse(msg.content.toString());
         const { raw } = payload;
-        console.log('rawwwwwww', raw);
-        console.log('payloadddddđ', payload);
-
         await this.db.transaction(async (tx) => {
           const identityResults = await tx
             .select()
@@ -61,7 +60,7 @@ export class AppService implements OnModuleInit {
               id: currentCustomerId,
               name:
                 `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}`.trim() ||
-                'Discord User',
+                `${raw.author.username}`,
               lastSeenAt: new Date(),
             });
 
@@ -99,6 +98,7 @@ export class AppService implements OnModuleInit {
             await tx.insert(conversations).values({
               id: currentConversationId,
               channelAccountId: payload.channelId,
+              conversationType: payload.conversationType,
               type: 'topic',
               externalConversationId: payload.conversationExternalId,
               title: raw?.chat?.title || raw?.from?.first_name || 'Chat',
@@ -148,14 +148,45 @@ export class AppService implements OnModuleInit {
         channel.ack(msg);
       } catch (error) {
         console.error('[ERROR] Consumer Transaction:', error);
+        channel.nack(msg, false, true);
       }
     });
+  }
+
+  async getAllCustomers() {
+    try {
+      const customer = await this.db
+        .select({
+          id: customers.id,
+          name: customers.name,
+          phone: customers.phone,
+          email: customers.email,
+          lastSeenAt: customers.lastSeenAt,
+          createdAt: customers.createdAt,
+          platform: customerIdentities.platform,
+          channelAccountId: customerIdentities.channelAccountId,
+        })
+        .from(customers)
+        .innerJoin(
+          customerIdentities,
+          eq(customers.id, customerIdentities.customerId),
+        );
+
+      if (!customer) {
+        throw new Error('Not found');
+      }
+
+      return { success: true, data: customer };
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: `Failed ${error}` };
+    }
   }
 
   async getCustomers() {
     try {
       const customersList = await this.db
-        .select({
+        .selectDistinct({
           id: customers.id,
           name: customers.name,
           lastSeenAt: customers.lastSeenAt,
@@ -168,6 +199,23 @@ export class AppService implements OnModuleInit {
         .innerJoin(
           customerIdentities,
           eq(customers.id, customerIdentities.customerId),
+        )
+        .innerJoin(
+          conversations,
+          and(
+            eq(
+              conversations.channelAccountId,
+              customerIdentities.channelAccountId,
+            ),
+            eq(conversations.conversationType, 'direct'),
+          ),
+        )
+        .innerJoin(
+          messages,
+          and(
+            eq(messages.conversationId, conversations.id),
+            eq(messages.customerId, customers.id),
+          ),
         )
         .orderBy(desc(customers.lastSeenAt));
 
@@ -217,44 +265,17 @@ export class AppService implements OnModuleInit {
           content: messages.content,
           senderType: messages.senderType,
           createdAt: messages.createdAt,
+          customerName: customers.name,
+          mediaUrl: messages.mediaUrl,
         })
         .from(messages)
+        .leftJoin(customers, eq(messages.customerId, customers.id))
         .where(eq(messages.conversationId, conversationId))
         .orderBy(asc(messages.createdAt));
 
       return { success: true, data: result };
     } catch (error) {
       return { success: false, message: 'Failed to get messages' };
-    }
-  }
-
-  async getConversationsByCustomerId(
-    customerId: string,
-    channelAccountId: string,
-  ) {
-    try {
-      const messagesList = await this.db
-        .select({
-          id: messages.id,
-          content: messages.content,
-          type: messages.type,
-          mediaUrl: messages.mediaUrl,
-          createdAt: messages.createdAt,
-          conversationId: messages.conversationId,
-        })
-        .from(messages)
-        .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-        .where(
-          and(
-            eq(messages.customerId, customerId),
-            eq(messages.channelAccountId, channelAccountId),
-          ),
-        )
-        .orderBy(asc(messages.createdAt));
-      return { success: true, data: messagesList };
-    } catch (error) {
-      console.error('Get Conversations Error:', error);
-      return { success: false, message: 'Failed to get conversations' };
     }
   }
 
@@ -296,9 +317,29 @@ export class AppService implements OnModuleInit {
     conversationId: string,
     message: string,
     channelAccountId: string,
-    file: File | null,
+    file: any | null,
   ) {
     try {
+      let mediaUrl: string | null = null;
+
+      if (file) {
+        const formData = new FormData();
+        formData.append(
+          'files',
+          new Blob([file.buffer], { type: file.mimetype }),
+          file.originalname,
+        );
+
+        const res = await fetch(`${process.env.BE_URL}/media/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        mediaUrl = data[0];
+      }
+
       const messageId = uuidv4();
       await this.db.insert(messages).values({
         id: messageId,
@@ -308,7 +349,7 @@ export class AppService implements OnModuleInit {
         senderId: 'agent',
         type: file ? 'file' : 'text',
         content: message,
-        mediaUrl: file ? `https://fakeurl.com/${file.name}` : null,
+        mediaUrl,
         externalMessageId: messageId,
         metadata: JSON.stringify({ sentFrom: 'web' }),
       });
@@ -339,16 +380,31 @@ export class AppService implements OnModuleInit {
             message,
             botToken: channel[0].accessToken,
             platform: channel[0].platform,
-            file: file ? { name: file.name, type: file.type } : null,
+            mediaUrl,
             senderId: 'agent',
           }),
         ),
         { persistent: true },
       );
+
       return { success: true, message: 'Reply sent successfully' };
     } catch (error) {
       console.error('Reply to Customer Error:', error);
       return { success: false, message: 'Failed to reply to customer' };
+    }
+  }
+
+  async getConversionGroup() {
+    try {
+      const conversationGroups = await this.db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.conversationType, 'channel'));
+
+      return { success: true, data: conversationGroups };
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: `Failed ${error}` };
     }
   }
 }

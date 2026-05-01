@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   mysql:
@@ -40,8 +40,8 @@ services:
     container_name: sop-rabbitmq
     restart: always
     ports:
-      - "5672:5672"   
-      - "15672:15672" 
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -95,8 +95,8 @@ services:
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
     ports:
-      - "8000:8000" 
-      - "8001:8001"  
+      - "8000:8000"
+      - "8001:8001"
     networks:
       - sop-network
 
@@ -111,7 +111,6 @@ services:
     networks:
       - sop-network
 
-
   ngrok:
     image: ngrok/ngrok:latest
     container_name: sop-ngrok
@@ -125,6 +124,27 @@ services:
       - "4040:4040"
     networks:
       - sop-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: sop-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000" # API endpoint
+      - "9001:9001" # Console UI
+    volumes:
+      - minio_data:/data
+    networks:
+      - sop-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 networks:
   sop-network:
     driver: bridge
@@ -133,3 +153,4 @@ volumes:
   mysql_data:
   mongo_data:
   kong_db_data:
+  minio_data:

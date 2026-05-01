@@ -17,7 +17,6 @@ import handleConnection from "../api/user/handleConnection";
 import Swal from "sweetalert2";
 import handleConnectionDiscord from "../api/user/handleConnectionDiscord";
 
-
 const DiscordIcon = () => (
   <svg
     width="24"
@@ -143,7 +142,6 @@ const TelegramGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
 
 const DiscordGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
   const [botToken, setBotToken] = useState("");
-  const [channelId, setChannelId] = useState("");
   const [copied, setCopied] = useState(false);
 
   const steps = [
@@ -170,20 +168,24 @@ const DiscordGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
       title: "Cấu hình Privileged Intents",
       desc: "Bật 'Message Content Intent' trong mục Bot để bot có thể đọc được tin nhắn.",
     },
-    {
-      title: "Lấy Channel ID",
-      desc: "Bật Chế độ nhà phát triển trong Discord, sau đó chuột phải vào kênh và chọn Copy ID.",
-      command: "Copy Channel ID",
-    },
+    
   ];
 
   const handleConnect = async () => {
     const result = await handleConnectionDiscord(botToken);
     if (result.success) {
-      Swal.fire({ icon: "success", title: "Thành công", text: "Đã kết nối Discord!" });
+      Swal.fire({
+        icon: "success",
+        title: "Thành công",
+        text: "Đã kết nối Discord!",
+      });
       onClose();
     } else {
-      Swal.fire({ icon: "error", title: "Lỗi", text: result.error || "Kết nối thất bại" });
+      Swal.fire({
+        icon: "error",
+        title: "Lỗi",
+        text: result.error || "Kết nối thất bại",
+      });
     }
   };
 
@@ -199,7 +201,7 @@ const DiscordGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
       <div className="space-y-8 relative">
         {/* Đường line dọc nối các bước */}
         <div className="absolute left-[27px] top-2 bottom-2 w-0.5 bg-slate-100" />
-        
+
         {steps.map((step, idx) => (
           <StepItem
             key={idx}
@@ -216,24 +218,15 @@ const DiscordGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
         <label className="block text-[13px] font-black uppercase tracking-wider text-slate-400 mb-4 ml-1">
           Thông tin cấu hình
         </label>
-        
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
+
+        <div className="">
+          <div className="mb-3">
+            <div className="">
               <input
                 type="password"
                 value={botToken}
                 onChange={(e) => setBotToken(e.target.value)}
                 placeholder="Discord Bot Token"
-                className="w-full px-6 py-4 rounded-2xl border-2 border-slate-200 focus:border-[#5865F2] outline-none transition-all bg-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={channelId}
-                onChange={(e) => setChannelId(e.target.value)}
-                placeholder="Channel ID"
                 className="w-full px-6 py-4 rounded-2xl border-2 border-slate-200 focus:border-[#5865F2] outline-none transition-all bg-white"
               />
             </div>

@@ -123,6 +123,7 @@ export class AppService {
         email: user.email,
         roles: rolesList,
         sid: sessionId,
+        iss: 'identity-issuer',
       };
 
       const [accessToken, refreshToken] = await Promise.all([
@@ -212,6 +213,7 @@ export class AppService {
           email: payload.email,
           roles: roleNames,
           sid: payload.sid,
+          iss: 'identity-issuer',
         },
         {
           secret: process.env.ACCESS_TOKEN_SECRET,
@@ -414,6 +416,7 @@ export class AppService {
           email: user.email,
           roles: rolesList,
           sid: sessionId,
+          iss: 'identity-issuer',
         };
 
         const [accessToken, refreshToken] = await Promise.all([

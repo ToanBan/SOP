@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-import getCustomers from "../api/customer/getCustomers";
-
+import getAllCustomer from "../api/customer/getAllCustomer";
 
 interface Customer{
 	id:string;
@@ -16,7 +15,7 @@ const CustomerPage = () => {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const response = await getCustomers();
+        const response = await getAllCustomer();
         setCustomers(response.data);
       } catch (error) {
         console.error("Failed to fetch customers:", error);
@@ -62,10 +61,7 @@ const CustomerPage = () => {
 								<span className="text-slate-400">Nguồn:</span>
 								<span className="font-bold text-blue-600">{customer.platform}</span>
 							</div>
-							<div className="flex justify-between text-sm">
-								<span className="text-slate-400">Tổng chi tiêu:</span>
-								<span className="font-bold">15.000.000đ</span>
-							</div>
+							
 						</div>
 						<button className="w-full py-2 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition">
 							Xem chi tiết

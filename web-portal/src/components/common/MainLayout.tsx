@@ -8,8 +8,9 @@ import {
   ShoppingBag,
   Users,
   ShieldCheck,
-  User, 
-  BluetoothConnectedIcon
+  User,
+  BluetoothConnectedIcon,
+  Megaphone,
 } from "lucide-react";
 import type React from "react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -28,6 +29,7 @@ const MainLayout: React.FC = () => {
       name: "Connections",
       icon: <BluetoothConnectedIcon size={20} />,
       path: "/connections",
+      adminOnly: true,
     },
     {
       name: "Hội thoại",
@@ -35,17 +37,18 @@ const MainLayout: React.FC = () => {
       path: "/chat",
     },
     {
-      name: "Nền tảng",
-      icon: <ShoppingBag size={20} />,
-      path: "/integrations",
+      name: "Quảng bá",
+      icon: <Megaphone size={20} />,
+      path: "/marketing",
     },
+
     {
       name: "Khách hàng",
       icon: <Users size={20} />,
       path: "/customers",
     },
     {
-      name: "Sales",
+      name: "Nhân Viên",
       icon: <User size={20} />,
       path: "/admin/sales",
       adminOnly: true,
@@ -129,9 +132,7 @@ const MainLayout: React.FC = () => {
                   {user?.user?.username || "User"}
                 </p>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  {user?.user?.role === "admin"
-                    ? "Quản trị viên"
-                    : "Nhân viên"}
+                  {user?.user?.role === "admin" ? "Quản trị viên" : "Nhân viên"}
                 </p>
               </div>
             </div>
