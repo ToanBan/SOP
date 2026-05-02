@@ -5,12 +5,12 @@ import {
   LogOut,
   MessageSquare,
   Search,
-  ShoppingBag,
   Users,
   ShieldCheck,
   User,
   BluetoothConnectedIcon,
   Megaphone,
+  Target
 } from "lucide-react";
 import type React from "react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -40,6 +40,12 @@ const MainLayout: React.FC = () => {
       name: "Quảng bá",
       icon: <Megaphone size={20} />,
       path: "/marketing",
+    },
+
+     {
+      name: "Chiến Dịch",
+      icon: <Target size={20} />,
+      path: "/campaign",
     },
 
     {

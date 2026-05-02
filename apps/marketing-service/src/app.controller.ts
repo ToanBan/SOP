@@ -28,4 +28,10 @@ export class AppController {
       files,
     );
   }
+
+
+  @Get("campaign")
+  async getAllCampaign(){
+    return this.appService.getAllCampaign();
+  }
 }

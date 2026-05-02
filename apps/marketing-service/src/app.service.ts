@@ -151,4 +151,55 @@ export class AppService {
       return { success: false, message: `Failed ${error}` };
     }
   }
+
+  async getAllCampaign() {
+    try {
+      const rows = await this.db
+        .select({
+          id: campaigns.id,
+          content: campaigns.content,
+          scheduledAt: campaigns.scheduledAt,
+          mediaUrl: campaignMedias.mediaUrl,
+          mediaOrder: campaignMedias.order,
+        })
+        .from(campaigns)
+        .leftJoin(campaignMedias, eq(campaigns.id, campaignMedias.campaignId))
+        .orderBy(campaigns.createdAt, campaignMedias.order);
+
+      const result = Object.values(
+        rows.reduce(
+          (acc, row) => {
+            if (!acc[row.id]) {
+              acc[row.id] = {
+                id: row.id,
+                content: row.content,
+                scheduledAt: row.scheduledAt,
+                mediaUrls: [],
+              };
+            }
+
+            if (row.mediaUrl) {
+              acc[row.id].mediaUrls.push(row.mediaUrl);
+            }
+
+            return acc;
+          },
+          {} as Record<
+            string,
+            {
+              id: string;
+              content: string;
+              scheduledAt: Date | null;
+              mediaUrls: string[];
+            }
+          >,
+        ),
+      );
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: `failed ${error}` };
+    }
+  }
 }
