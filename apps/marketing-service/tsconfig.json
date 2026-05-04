@@ -5,12 +5,29 @@
     "baseUrl": "./",
     "isolatedModules": true,
     "paths": {
-      "src/*": ["src/*"],
-      "@repo/db": ["../../packages/db/src/index"],
-      "@repo/queue": ["../../packages/queue/src/index"],
-      "@repo/auth": ["../../packages/auth/src/index"]
+      "src/*": [
+        "src/*"
+      ],
+      "@repo/db": [
+        "../../packages/db/src/index"
+      ],
+      "@repo/queue": [
+        "../../packages/queue/src/index"
+      ],
+      "@repo/auth": [
+        "../../packages/auth/src/index"
+      ],
+      "@repo/redis": [
+        "../../packages/redis/src/index"
+      ]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test"
+  ]
 }

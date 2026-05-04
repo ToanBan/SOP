@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Post,
   UploadedFiles,
   UseGuards,
@@ -12,6 +13,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { CampaignDTO } from './dto/CampaignDTO';
 import { CheckRole, ROLES, DecodeAuthGuard } from '@repo/auth';
 import { CheckBlackList } from './guards/checkblacklist.guard';
+
 
 @Controller('marketing')
 @UseGuards(DecodeAuthGuard, CheckBlackList, CheckRole) 
@@ -41,4 +43,7 @@ export class AppController {
   async getAllCampaign() {
     return this.appService.getAllCampaign();
   }
+
+
+
 }

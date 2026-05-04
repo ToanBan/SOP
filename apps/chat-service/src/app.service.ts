@@ -15,12 +15,14 @@ import {
 } from '@repo/db';
 
 import { v4 as uuidv4 } from 'uuid';
+import { REDIS_PROVIDER } from './redis/redis.provider';
 
 @Injectable()
 export class AppService implements OnModuleInit {
   constructor(
     @Inject(DB_PROVIDER) private readonly db: any,
     @Inject(QUEUE_PROVIDER) private readonly queue: any,
+    @Inject(REDIS_PROVIDER) private readonly redis: any,
   ) {}
 
   async onModuleInit() {
@@ -136,6 +138,8 @@ export class AppService implements OnModuleInit {
               metadata: JSON.stringify(raw),
             });  
         });
+        await this.redis.del('allcustomer:all')
+        await this.redis.del('customers:all')
         const duration = Date.now() - start
         console.log(`Processing time: ${duration}ms`);
 
@@ -148,7 +152,12 @@ export class AppService implements OnModuleInit {
   }
 
   async getAllCustomers() {
+    const cachedKey = "allcustomer:all"
     try {
+      const cached = await this.redis.get(cachedKey)
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
       const customer = await this.db
         .select({
           id: customers.id,
@@ -166,9 +175,7 @@ export class AppService implements OnModuleInit {
           eq(customers.id, customerIdentities.customerId),
         );
 
-      if (!customer) {
-        throw new Error('Not found');
-      }
+      await this.redis.set(cachedKey, JSON.stringify(customer), 'EX', 60)
 
       return { success: true, data: customer };
     } catch (error) {
@@ -178,7 +185,12 @@ export class AppService implements OnModuleInit {
   }
 
   async getCustomers() {
+    const cachedKey = "customers:all"
     try {
+      const cached = await this.redis.get(cachedKey)
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
       const customersList = await this.db
         .selectDistinct({
           id: customers.id,
@@ -213,6 +225,7 @@ export class AppService implements OnModuleInit {
         )
         .orderBy(desc(customers.lastSeenAt));
 
+      await this.redis.set(cachedKey, JSON.stringify(customersList), 'EX', 60)
       return { success: true, data: customersList };
     } catch (error) {
       console.error('Get Customers Error:', error);
@@ -389,12 +402,18 @@ export class AppService implements OnModuleInit {
   }
 
   async getConversionGroup() {
+    const cachedKey = "conversations:channel"
     try {
+      const cached = await this.redis.get(cachedKey)
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
       const conversationGroups = await this.db
         .select()
         .from(conversations)
         .where(eq(conversations.conversationType, 'channel'));
 
+      await this.redis.set(cachedKey, JSON.stringify(conversationGroups), 'EX', 60)
       return { success: true, data: conversationGroups };
     } catch (error) {
       console.error(error);

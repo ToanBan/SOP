@@ -10,15 +10,24 @@ import {
 import { eq, inArray} from '@repo/db';
 import { v4 as uuidv4 } from 'uuid';
 import { QUEUE_PROVIDER } from './queue/queue.provider';
+import { REDIS_PROVIDER } from './redis/redis.provider';
 @Injectable()
 export class AppService {
   constructor(
     @Inject(DB_PROVIDER) private readonly db: any,
     @Inject(QUEUE_PROVIDER) private readonly queue: any,
+    @Inject(REDIS_PROVIDER) private readonly redis: any,
   ) {}
 
   async getAllConversations() {
+    const cacheKey = 'conversations:all';
     try {
+
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
+
       const conversationsDb = await this.db
         .select({
           id: conversations.id,
@@ -39,10 +48,10 @@ export class AppService {
           eq(conversations.channelAccountId, channelAccounts.id),
         );
 
-      if (!conversationsDb) {
-        throw new Error('Not found');
-      }
+      await this.redis.set(cacheKey, JSON.stringify(conversationsDb), 'EX', 60);
 
+
+      console.log(conversationsDb);
       return { success: true, data: conversationsDb };
     } catch (error) {
       console.error(error);
@@ -106,6 +115,9 @@ export class AppService {
         }
       });
 
+
+      await this.redis.del('campagins:all');
+
       const targetsWithInfo = await this.db
         .select({
           conversationId: conversations.id,
@@ -152,7 +164,13 @@ export class AppService {
   }
 
   async getAllCampaign() {
+    const cacheKey = 'campagins:all'
     try {
+
+      const cached = await this.redis.get(cacheKey)
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
       const rows = await this.db
         .select({
           id: campaigns.id,
@@ -194,6 +212,8 @@ export class AppService {
           >,
         ),
       );
+
+      await this.redis.set(cacheKey, JSON.stringify(result), 'EX', 60);
 
       return { success: true, data: result };
     } catch (error) {

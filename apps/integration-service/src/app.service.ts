@@ -3,12 +3,14 @@ import { DB_PROVIDER } from './db/db.provider';
 import { QUEUE_PROVIDER } from './queue/queue.provider';
 import { channelAccounts, messages, customers, users } from '@repo/db';
 import { count, desc, eq } from '@repo/db';
+import { REDIS_PROVIDER } from './redis/redis.provider';
 
 @Injectable()
 export class AppService implements OnModuleInit {
   constructor(
     @Inject(DB_PROVIDER) private db: any,
     @Inject(QUEUE_PROVIDER) private queue: any,
+    @Inject(REDIS_PROVIDER) private redis: any,
   ) {}
 
   async onModuleInit() {
@@ -150,7 +152,11 @@ export class AppService implements OnModuleInit {
   }
 
   async getStatis() {
+    const cached = await this.redis.get('statis:all')
     try {
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
       const countMessage = (
         await this.db.select({ total: count() }).from(messages)
       )[0].total;
@@ -180,16 +186,19 @@ export class AppService implements OnModuleInit {
           eq(messages.channelAccountId, channelAccounts.id),
         )
         .groupBy(channelAccounts.platform);
+      
+      const data = {
+        countMessage,
+        countCustomer,
+        countStaff,
+        platformStats,
+        customersDb,
+      }
+      await this.redis.set('statis:all', JSON.stringify(data), 'EX', 60)
 
       return {
         success: true,
-        data: {
-          countMessage,
-          countCustomer,
-          countStaff,
-          platformStats,
-          customersDb,
-        },
+        data
       };
     } catch (error) {
       console.error(error);
