@@ -1,0 +1,1 @@
+export { connectionMinio } from './connection';

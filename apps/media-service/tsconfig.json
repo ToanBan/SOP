@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "isolatedModules": true,
+    "paths": {
+      "src/*": ["src/*"],
+      "@repo/db": ["../../packages/db/src/index"],
+      "@repo/queue": ["../../packages/queue/src/index"],
+      "@repo/auth": ["../../packages/auth/src/index"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test"]
+}

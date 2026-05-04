@@ -29,21 +29,29 @@ export class RbacController {
   }
 
   @Get('/permissions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async getAllPermissions() {
     return this.rbacService.getAllPermissions();
   }
 
   @Get('/users')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async getUsers() {
     return this.rbacService.getUsers();
   }
 
   @Get('/roles')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async getRoles() {
     return this.rbacService.getRoles();
   }
 
   @Get(':roleId/permissions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   async getPermissionsByRole(@Param('roleId') roleId: string) {
     return this.rbacService.getPermissionsByRole(roleId);
   }

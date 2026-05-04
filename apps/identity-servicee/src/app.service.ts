@@ -5,9 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { and, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import { users, roles, userSessions, userProviders, userRoles } from '@repo/db';
+
 import { DB_PROVIDER } from './db/db.provider';
 import type { RegisterDto } from './dto/RegisterDto';
 import { LoginDto } from './dto/LoginDto';
@@ -15,6 +14,8 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
+import { and, desc, eq } from '@repo/db';
+import { users, roles, userSessions, userProviders, userRoles } from '@repo/db';
 @Injectable()
 export class AppService {
   constructor(
@@ -22,8 +23,6 @@ export class AppService {
     private jwtService: JwtService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
-
-
 
   async register(dto: RegisterDto) {
     try {
@@ -47,7 +46,7 @@ export class AppService {
         const [role] = await tx
           .select()
           .from(roles)
-          .where(eq(roles.name, 'sales'))
+          .where(eq(roles.name, 'user'))
           .limit(1);
 
         if (!role) {
@@ -115,6 +114,7 @@ export class AppService {
         email: user.email,
         roles: rolesList,
         sid: sessionId,
+        iss: 'identity-issuer',
       };
 
       const [accessToken, refreshToken] = await Promise.all([
@@ -204,6 +204,7 @@ export class AppService {
           email: payload.email,
           roles: roleNames,
           sid: payload.sid,
+          iss: 'identity-issuer',
         },
         {
           secret: process.env.ACCESS_TOKEN_SECRET,
@@ -213,7 +214,7 @@ export class AppService {
 
       return {
         accessToken: newAccessToken,
-        roles: roleNames, // optional trả về luôn cho frontend
+        roles: roleNames,
       };
     } catch (error) {
       console.error('Refresh token error:', error);
@@ -397,15 +398,13 @@ export class AppService {
           .where(eq(userRoles.userId, user.id));
 
         const rolesList = roleRows.map((r) => r.roleName);
-        console.log('rolistName', rolesList);
-
         const sessionId = crypto.randomUUID();
-
         const payload = {
           sub: user.id,
           email: user.email,
           roles: rolesList,
           sid: sessionId,
+          iss: 'identity-issuer',
         };
 
         const [accessToken, refreshToken] = await Promise.all([
@@ -465,5 +464,36 @@ export class AppService {
       email: googleUser.email,
       name: googleUser.name,
     });
+  }
+
+  async blacklist(token: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: process.env.ACCESS_TOKEN_SECRET,
+      });
+
+      const isBlacklisted = await this.redis.get(`blacklist:${token}`);
+      if (isBlacklisted) {
+        return { active: false };
+      }
+
+      const [session] = await this.db
+        .select()
+        .from(userSessions)
+        .where(eq(userSessions.id, payload.sid))
+        .limit(1);
+
+      if (!session || session.isRevoked) {
+        return { active: false };
+      }
+
+      return {
+        active: true,
+        userId: payload.sub,
+        roles: payload.roles,
+      };
+    } catch (error) {
+      return { active: false };
+    }
   }
 }

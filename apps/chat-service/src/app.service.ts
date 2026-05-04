@@ -7,15 +7,22 @@ import {
   conversations,
   conversationParticipants,
   messages,
+  channelAccounts,
+  eq,
+  and,
+  desc,
+  asc,
 } from '@repo/db';
-import { eq, and, desc, asc } from 'drizzle-orm';
+
 import { v4 as uuidv4 } from 'uuid';
+import { REDIS_PROVIDER } from './redis/redis.provider';
 
 @Injectable()
 export class AppService implements OnModuleInit {
   constructor(
     @Inject(DB_PROVIDER) private readonly db: any,
     @Inject(QUEUE_PROVIDER) private readonly queue: any,
+    @Inject(REDIS_PROVIDER) private readonly redis: any,
   ) {}
 
   async onModuleInit() {
@@ -27,16 +34,17 @@ export class AppService implements OnModuleInit {
     const exchange = 'chat_exchange';
 
     await channel.assertExchange(exchange, 'topic', { durable: true });
-    const q = await channel.assertQueue('chat_queue', { durable: true });
-    await channel.bindQueue(q.queue, exchange, 'message.*');
+    const q = await channel.assertQueue('chat_queue_v3', { durable: true });
+    await channel.bindQueue(q.queue, exchange, 'message.text');
+    await channel.bindQueue(q.queue, exchange, 'message.media.processed');
 
     channel.consume(q.queue, async (msg) => {
       if (!msg) return;
 
+      const start = Date.now();
       try {
         const payload = JSON.parse(msg.content.toString());
         const { raw } = payload;
-
         await this.db.transaction(async (tx) => {
           const identityResults = await tx
             .select()
@@ -58,7 +66,7 @@ export class AppService implements OnModuleInit {
               id: currentCustomerId,
               name:
                 `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}`.trim() ||
-                'Telegram User',
+                `${raw.author.username}`,
               lastSeenAt: new Date(),
             });
 
@@ -96,13 +104,13 @@ export class AppService implements OnModuleInit {
             await tx.insert(conversations).values({
               id: currentConversationId,
               channelAccountId: payload.channelId,
+              conversationType: payload.conversationType,
               type: 'topic',
               externalConversationId: payload.conversationExternalId,
               title: raw?.chat?.title || raw?.from?.first_name || 'Chat',
               lastMessageAt: new Date(),
             });
 
-            // Tạo Participant
             await tx.insert(conversationParticipants).values({
               id: uuidv4(),
               conversationId: currentConversationId,
@@ -116,15 +124,6 @@ export class AppService implements OnModuleInit {
               .set({ lastMessageAt: new Date() })
               .where(eq(conversations.id, currentConversationId));
           }
-
-          // 3. Kiểm tra trùng tin nhắn và Lưu tin nhắn mới
-          const messageResults = await tx
-            .select()
-            .from(messages)
-            .where(eq(messages.externalMessageId, payload.messageExternalId))
-            .limit(1);
-
-          if (messageResults.length === 0) {
             await tx.insert(messages).values({
               id: uuidv4(),
               channelAccountId: payload.channelId,
@@ -137,24 +136,63 @@ export class AppService implements OnModuleInit {
               mediaUrl: payload.mediaUrl,
               externalMessageId: payload.messageExternalId,
               metadata: JSON.stringify(raw),
-            });
-            console.log(
-              `✅ [SUCCESS] Saved message: ${payload.messageExternalId}`,
-            );
-          }
+            });  
         });
+        await this.redis.del('allcustomer:all')
+        await this.redis.del('customers:all')
+        const duration = Date.now() - start
+        console.log(`Processing time: ${duration}ms`);
 
         channel.ack(msg);
       } catch (error) {
-        console.error('❌ [ERROR] Consumer Transaction:');
+        console.error('[ERROR] Consumer Transaction:', error);
+        channel.nack(msg, false, true);
       }
     });
   }
 
-  async getCustomers() {
+  async getAllCustomers() {
+    const cachedKey = "allcustomer:all"
     try {
-      const customersList = await this.db
+      const cached = await this.redis.get(cachedKey)
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
+      const customer = await this.db
         .select({
+          id: customers.id,
+          name: customers.name,
+          phone: customers.phone,
+          email: customers.email,
+          lastSeenAt: customers.lastSeenAt,
+          createdAt: customers.createdAt,
+          platform: customerIdentities.platform,
+          channelAccountId: customerIdentities.channelAccountId,
+        })
+        .from(customers)
+        .innerJoin(
+          customerIdentities,
+          eq(customers.id, customerIdentities.customerId),
+        );
+
+      await this.redis.set(cachedKey, JSON.stringify(customer), 'EX', 60)
+
+      return { success: true, data: customer };
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: `Failed ${error}` };
+    }
+  }
+
+  async getCustomers() {
+    const cachedKey = "customers:all"
+    try {
+      const cached = await this.redis.get(cachedKey)
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
+      const customersList = await this.db
+        .selectDistinct({
           id: customers.id,
           name: customers.name,
           lastSeenAt: customers.lastSeenAt,
@@ -168,8 +206,26 @@ export class AppService implements OnModuleInit {
           customerIdentities,
           eq(customers.id, customerIdentities.customerId),
         )
+        .innerJoin(
+          conversations,
+          and(
+            eq(
+              conversations.channelAccountId,
+              customerIdentities.channelAccountId,
+            ),
+            eq(conversations.conversationType, 'direct'),
+          ),
+        )
+        .innerJoin(
+          messages,
+          and(
+            eq(messages.conversationId, conversations.id),
+            eq(messages.customerId, customers.id),
+          ),
+        )
         .orderBy(desc(customers.lastSeenAt));
 
+      await this.redis.set(cachedKey, JSON.stringify(customersList), 'EX', 60)
       return { success: true, data: customersList };
     } catch (error) {
       console.error('Get Customers Error:', error);
@@ -177,32 +233,56 @@ export class AppService implements OnModuleInit {
     }
   }
 
-  async getConversationsByCustomerId(
+  async getConversationByCustomer(
     customerId: string,
     channelAccountId: string,
   ) {
     try {
-      const messagesList = await this.db
+      const result = await this.db
+        .select({
+          id: conversations.id,
+          title: conversations.title,
+          lastMessageAt: conversations.lastMessageAt,
+        })
+        .from(conversations)
+        .innerJoin(
+          conversationParticipants,
+          eq(conversations.id, conversationParticipants.conversationId),
+        )
+        .where(
+          and(
+            eq(conversationParticipants.customerId, customerId),
+            eq(conversations.channelAccountId, channelAccountId),
+          ),
+        )
+        .orderBy(desc(conversations.lastMessageAt))
+        .limit(1);
+
+      return { success: true, data: result[0] || null };
+    } catch (error) {
+      return { success: false, message: 'Failed to get conversation' };
+    }
+  }
+
+  async getMessagesByConversationId(conversationId: string) {
+    try {
+      const result = await this.db
         .select({
           id: messages.id,
           content: messages.content,
-          type: messages.type,
-          mediaUrl: messages.mediaUrl,
+          senderType: messages.senderType,
           createdAt: messages.createdAt,
+          customerName: customers.name,
+          mediaUrl: messages.mediaUrl,
         })
         .from(messages)
-        .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-        .where(
-          and(
-            eq(messages.customerId, customerId),
-            eq(messages.channelAccountId, channelAccountId),
-          ),
-        )
+        .leftJoin(customers, eq(messages.customerId, customers.id))
+        .where(eq(messages.conversationId, conversationId))
         .orderBy(asc(messages.createdAt));
-      return { success: true, data: messagesList };
+
+      return { success: true, data: result };
     } catch (error) {
-      console.error('Get Conversations Error:', error);
-      return { success: false, message: 'Failed to get conversations' };
+      return { success: false, message: 'Failed to get messages' };
     }
   }
 
@@ -237,6 +317,107 @@ export class AppService implements OnModuleInit {
     } catch (error) {
       console.error('Update Customer Error:', error);
       return { success: false, message: 'Lỗi hệ thống khi cập nhật' };
+    }
+  }
+
+  async replyToCustomer(
+    conversationId: string,
+    message: string,
+    channelAccountId: string,
+    file: any | null,
+  ) {
+    try {
+      let mediaUrl: string | null = null;
+
+      if (file) {
+        const formData = new FormData();
+        formData.append(
+          'files',
+          new Blob([file.buffer], { type: file.mimetype }),
+          file.originalname,
+        );
+
+        const res = await fetch(`${process.env.BE_URL}/media/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        mediaUrl = data[0];
+      }
+
+      const messageId = uuidv4();
+      await this.db.insert(messages).values({
+        id: messageId,
+        channelAccountId,
+        conversationId,
+        senderType: 'agent',
+        senderId: 'agent',
+        type: file ? 'file' : 'text',
+        content: message,
+        mediaUrl,
+        externalMessageId: messageId,
+        metadata: JSON.stringify({ sentFrom: 'web' }),
+      });
+
+      const conversation = await this.db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.id, conversationId))
+        .limit(1);
+
+      if (!conversation[0]) {
+        throw new Error('Conversation not found');
+      }
+
+      const externalConversationId = conversation[0].externalConversationId;
+      const channel = await this.db
+        .select()
+        .from(channelAccounts)
+        .where(eq(channelAccounts.id, channelAccountId))
+        .limit(1);
+
+      await this.queue.channel.publish(
+        'chat_exchange',
+        'message.reply',
+        Buffer.from(
+          JSON.stringify({
+            chatId: externalConversationId,
+            message,
+            botToken: channel[0].accessToken,
+            platform: channel[0].platform,
+            mediaUrl,
+            senderId: 'agent',
+          }),
+        ),
+        { persistent: true },
+      );
+
+      return { success: true, message: 'Reply sent successfully' };
+    } catch (error) {
+      console.error('Reply to Customer Error:', error);
+      return { success: false, message: 'Failed to reply to customer' };
+    }
+  }
+
+  async getConversionGroup() {
+    const cachedKey = "conversations:channel"
+    try {
+      const cached = await this.redis.get(cachedKey)
+      if (cached) {
+        return { success: true, data: JSON.parse(cached) };
+      }
+      const conversationGroups = await this.db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.conversationType, 'channel'));
+
+      await this.redis.set(cachedKey, JSON.stringify(conversationGroups), 'EX', 60)
+      return { success: true, data: conversationGroups };
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: `Failed ${error}` };
     }
   }
 }

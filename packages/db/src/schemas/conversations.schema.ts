@@ -12,7 +12,7 @@ export const conversations = mysqlTable("conversations", {
   externalConversationId: varchar("external_conversation_id", { length: 100 }),
 
   lastMessageAt: timestamp("last_message_at"),
-
+  conversationType: varchar("conversation_type", { length: 20 }).notNull().default("direct"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });

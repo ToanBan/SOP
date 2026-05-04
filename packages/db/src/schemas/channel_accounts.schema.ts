@@ -2,7 +2,7 @@ import { mysqlTable, varchar, text, timestamp } from "drizzle-orm/mysql-core";
 
 export const channelAccounts = mysqlTable("channel_accounts", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  integrationId: varchar("integration_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
   platform: varchar("platform", { length: 50 }).notNull(),
   externalId: varchar("external_id", { length: 100 }),
   name: varchar("name", { length: 150 }),

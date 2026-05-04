@@ -11,12 +11,10 @@ const OAuthSuccess = () => {
       try {
         const res = await api.post("/auth/refresh-token");
         const token = res.data.accessToken;
-        console.log("OAuth token:", token);
         setAccessToken(token);
         navigate("/dashboard");
       } catch (err) {
         console.error("OAuth failed", err);
-        // navigate("/login");
       }
     };
 

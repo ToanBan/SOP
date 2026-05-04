@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { DbModule } from './db/db.module';
 import { ConfigModule } from '@nestjs/config';
 import { QueueModule } from './queue/queue.module';
+import { RedisModule } from './redis/redis.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -12,6 +13,7 @@ import { QueueModule } from './queue/queue.module';
     }),
     DbModule,
     QueueModule,
+    RedisModule
   ],
   controllers: [AppController],
   providers: [AppService],

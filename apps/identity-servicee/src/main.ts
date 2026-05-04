@@ -16,7 +16,7 @@ async function bootstrap() {
     const seedService = app.get(SeedService);
     await seedService.onModuleInit();
 
-    const port = process.env.PORT ?? 3003;
+    const port = process.env.PORT!;
     await app.listen(port);
     
     console.log(`Identity service running on: http://localhost:${port}`);

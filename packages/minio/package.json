@@ -1,0 +1,6 @@
+{
+    "name": "@repo/minio",
+    "dependencies": {
+        "minio": "^8.0.7"
+    }
+}

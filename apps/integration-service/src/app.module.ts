@@ -7,6 +7,9 @@ import { DbModule } from './db/db.module';
 import { TelegramController } from './telegram/telegram.controller';
 import { TelegramService } from './telegram/telegram.service';
 import { QueueModule } from './queue/queue.module';
+import { DiscordService } from './discord/discord.service';
+import { DiscordController } from './discord/discord.controller';
+import { RedisModule } from './redis/redis.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -15,8 +18,9 @@ import { QueueModule } from './queue/queue.module';
     }),
     DbModule,
     QueueModule,
+    RedisModule
   ],
-  controllers: [AppController, WebhookController, TelegramController],
-  providers: [AppService, TelegramService],
+  controllers: [AppController, WebhookController, TelegramController, DiscordController],
+  providers: [AppService, TelegramService, DiscordService],
 })
 export class AppModule {}

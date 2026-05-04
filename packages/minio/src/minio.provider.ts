@@ -1,0 +1,1 @@
+export const MINIO_PROVIDER = "MINIO_PROVIDER";

@@ -6,8 +6,9 @@ import {
   users,
   roles,
   userRoles,
+  eq
 } from '@repo/db';
-import { eq, inArray } from 'drizzle-orm';
+
 @Injectable()
 export class RbacService {
   constructor(@Inject(DB_PROVIDER) private readonly db: any) {}

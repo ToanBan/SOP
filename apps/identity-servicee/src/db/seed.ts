@@ -1,7 +1,6 @@
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import { roles, permissions } from '@repo/db';
+import { roles, permissions, eq} from '@repo/db';
 import { DB_PROVIDER } from './db.provider';
 @Injectable()
 export class SeedService implements OnModuleInit {
@@ -73,6 +72,20 @@ export class SeedService implements OnModuleInit {
         name: 'sales',
       });
     }
+
+    const userRole = await this.db
+      .select()
+      .from(roles)
+      .where(eq(roles.name, 'user'))
+      .limit(1);
+
+    if (userRole.length === 0) {
+      await this.db.insert(roles).values({
+        id: uuidv4(),
+        name: 'user',
+      });
+    }
+
 
     console.log('Roles seeded successfully');
   }

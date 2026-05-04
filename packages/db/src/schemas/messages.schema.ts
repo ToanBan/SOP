@@ -7,15 +7,13 @@ export const messages = mysqlTable("messages", {
 
   conversationId: varchar("conversation_id", { length: 36 }).notNull(),
 
-  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  customerId: varchar("customer_id", { length: 36 }),
 
   senderType: varchar("sender_type", { length: 20 }).notNull(),
-  // customer | agent | system
 
   senderId: varchar("sender_id", { length: 36 }),
 
   type: varchar("type", { length: 20 }).notNull(),
-  // text | image | file | video
 
   content: text("content"),
 

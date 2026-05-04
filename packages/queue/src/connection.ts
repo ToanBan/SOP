@@ -29,7 +29,6 @@ export const connectionQueue = async () => {
       connection = null;
       channel = null;
     });
-    console.log('--- RabbitMQ Connected & Exchange Asserted ---');
     return { connection, channel };
   } catch (error) {
     console.error('RabbitMQ connection error:', error);

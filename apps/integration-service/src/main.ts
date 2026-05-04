@@ -10,9 +10,9 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
-  await app.listen(process.env.PORT ?? 3003);
+  await app.listen(process.env.PORT!);
   console.log(
-    `Integration service running on: http://localhost:${process.env.PORT ?? 3003}`,
+    `Integration service running on: http://localhost:${process.env.PORT}`,
   );
 }
 bootstrap();

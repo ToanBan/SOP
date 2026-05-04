@@ -1,33 +1,37 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { AppService } from 'src/app.service';
+import { DB_PROVIDER } from 'src/db/db.provider';
+import { channelAccounts, eq} from '@repo/db';
+
 
 @Controller('webhooks')
 export class WebhookController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    @Inject(DB_PROVIDER) private readonly db: any,
+  ) {}
 
-  private normalizeTelegramMessage(channelId: string, message: any) {
+  private normalizeTelegramMessage(channelId: string, message: any, accessToken:string) {
     const hasText = message.text;
-    const hasPhoto = message.photo;
     const hasDocument = message.document;
-    const hasVideo = message.video;
 
     let type = 'text';
     let mediaUrl = null;
 
-    if (hasPhoto) {
-      type = 'image';
-      mediaUrl = message.photo?.at(-1)?.file_id;
-    }
-
     if (hasDocument) {
-      type = 'file';
+      type = 'media';
       mediaUrl = message.document.file_id;
     }
 
-    if (hasVideo) {
-      type = 'video';
-      mediaUrl = message.video.file_id;
-    }
+    console.log(type);
 
     return {
       channelId,
@@ -38,7 +42,7 @@ export class WebhookController {
       type,
       text: message.text || null,
       mediaUrl,
-
+      accessToken,
       raw: message,
     };
   }
@@ -50,9 +54,15 @@ export class WebhookController {
   ) {
     try {
       const message = body.message;
-      console.log('Received Telegram webhook:', message);
+
+      const channelAccount = await this.db
+        .select({ accessToken: channelAccounts.accessToken })
+        .from(channelAccounts)
+        .where(eq(channelAccounts.id, channelId))
+
+      const accessToken = channelAccount[0].accessToken;
       if (!message) return { ok: true };
-      const normalized = this.normalizeTelegramMessage(channelId, message);
+      const normalized = this.normalizeTelegramMessage(channelId, message, accessToken);
       await this.appService.pushMessageToQueue(normalized);
       return { success: true };
     } catch (error) {
