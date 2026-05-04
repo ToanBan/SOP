@@ -5,19 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { and, desc, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  users,
-  roles,
-  userSessions,
-  userProviders,
-  userRoles,
-  messages,
-  customers,
-  conversations,
-  channelAccounts
-} from '@repo/db';
+
 import { DB_PROVIDER } from './db/db.provider';
 import type { RegisterDto } from './dto/RegisterDto';
 import { LoginDto } from './dto/LoginDto';
@@ -25,6 +14,8 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
+import { and, desc, eq } from '@repo/db';
+import { users, roles, userSessions, userProviders, userRoles } from '@repo/db';
 @Injectable()
 export class AppService {
   constructor(
@@ -55,7 +46,7 @@ export class AppService {
         const [role] = await tx
           .select()
           .from(roles)
-          .where(eq(roles.name, 'sales'))
+          .where(eq(roles.name, 'user'))
           .limit(1);
 
         if (!role) {
@@ -223,7 +214,7 @@ export class AppService {
 
       return {
         accessToken: newAccessToken,
-        roles: roleNames, // optional trả về luôn cho frontend
+        roles: roleNames,
       };
     } catch (error) {
       console.error('Refresh token error:', error);
@@ -407,10 +398,7 @@ export class AppService {
           .where(eq(userRoles.userId, user.id));
 
         const rolesList = roleRows.map((r) => r.roleName);
-        console.log('rolistName', rolesList);
-
         const sessionId = crypto.randomUUID();
-
         const payload = {
           sub: user.id,
           email: user.email,
@@ -478,5 +466,34 @@ export class AppService {
     });
   }
 
+  async blacklist(token: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: process.env.ACCESS_TOKEN_SECRET,
+      });
 
+      const isBlacklisted = await this.redis.get(`blacklist:${token}`);
+      if (isBlacklisted) {
+        return { active: false };
+      }
+
+      const [session] = await this.db
+        .select()
+        .from(userSessions)
+        .where(eq(userSessions.id, payload.sid))
+        .limit(1);
+
+      if (!session || session.isRevoked) {
+        return { active: false };
+      }
+
+      return {
+        active: true,
+        userId: payload.sub,
+        roles: payload.roles,
+      };
+    } catch (error) {
+      return { active: false };
+    }
+  }
 }

@@ -7,10 +7,9 @@ import {
   campaignTargets,
   campaignMedias,
 } from '@repo/db';
-import { eq } from 'drizzle-orm';
+import { eq, inArray} from '@repo/db';
 import { v4 as uuidv4 } from 'uuid';
 import { QUEUE_PROVIDER } from './queue/queue.provider';
-import { inArray } from 'drizzle-orm';
 @Injectable()
 export class AppService {
   constructor(

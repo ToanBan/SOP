@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import { AppService } from 'src/app.service';
 import { DB_PROVIDER } from 'src/db/db.provider';
-import { channelAccounts } from '@repo/db';
-import { eq, and, desc, asc } from 'drizzle-orm';
+import { channelAccounts, eq} from '@repo/db';
+
 
 @Controller('webhooks')
 export class WebhookController {
@@ -55,7 +55,6 @@ export class WebhookController {
     try {
       const message = body.message;
 
-      console.log('Received Telegram webhook:', message);
       const channelAccount = await this.db
         .select({ accessToken: channelAccounts.accessToken })
         .from(channelAccounts)

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { TelegramService } from './telegram.service';
 import { DecodeAuthGuard, CurrentUser, CheckRole, ROLES} from '@repo/auth';
-
+import { CheckBlackList } from 'src/guards/checkblacklist.guard';
 @Controller('integration')
 export class TelegramController {
   constructor(private readonly telegramService: TelegramService) {}

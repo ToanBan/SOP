@@ -15,3 +15,6 @@ export * from "./schemas/customer_identities.schema";
 export * from "./schemas/campaign_medias.schema"
 export * from "./schemas/campaign_targets.schema"
 export * from "./schemas/campaigns.schema"
+
+
+export { eq, and, or, desc, asc, like, sql, inArray, isNull, isNotNull, count} from "drizzle-orm";

@@ -18,40 +18,88 @@ import ConnectionPage from "./pages/ConnectionPage";
 import PostPage from "./pages/PostPage";
 import MarketingPage from "./pages/MarketingPage";
 import CampaignPage from "./pages/CampaignPage";
+
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<MainLayout />}>
+        <Route path="/oauth-success" element={<OAuthSuccess />} />
+
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="chat" element={<ChatPage />} />
-          <Route path="customers" element={<CustomerPage />} />
-          <Route path="connections" element={<ConnectionPage />} />
-          <Route path="marketing" element={<MarketingPage />} />
+          <Route
+            path="customers"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "sales", "marketing"]}>
+                <CustomerPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="posts" element={<PostPage />} />
-          <Route path="campaign" element={<CampaignPage />} />
+
+          <Route
+            path="connections"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <ConnectionPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="admin/sales"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminSales />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/roles"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminRole />
               </ProtectedRoute>
             }
           />
 
           <Route
-            path="admin/roles"
+            path="marketing"
             element={
-              <ProtectedRoute>
-                <AdminRole />
+              <ProtectedRoute allowedRoles={["admin", "marketing"]}>
+                <MarketingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="campaign"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "marketing"]}>
+                <CampaignPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="chat"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "sales"]}>
+                <ChatPage />
               </ProtectedRoute>
             }
           />
         </Route>
-        <Route path="/oauth-success" element={<OAuthSuccess />} />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

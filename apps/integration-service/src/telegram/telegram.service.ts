@@ -1,8 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { DB_PROVIDER } from 'src/db/db.provider';
-import { channelAccounts } from '@repo/db';
+import { channelAccounts, eq} from '@repo/db';
 import { v4 as uuidv4 } from 'uuid';
-import { eq } from 'drizzle-orm/sql/expressions/conditions';
 @Injectable()
 export class TelegramService {
   constructor(@Inject(DB_PROVIDER) private readonly db: any) {}

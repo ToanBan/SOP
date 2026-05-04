@@ -2,7 +2,7 @@ import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { DB_PROVIDER } from './db/db.provider';
 import { QUEUE_PROVIDER } from './queue/queue.provider';
 import { channelAccounts, messages, customers, users } from '@repo/db';
-import { count, desc, eq } from 'drizzle-orm';
+import { count, desc, eq } from '@repo/db';
 
 @Injectable()
 export class AppService implements OnModuleInit {
@@ -92,7 +92,6 @@ export class AppService implements OnModuleInit {
   async startConsumer() {
     const channel = this.queue.channel;
     const exchange = 'chat_exchange';
-    await channel.prefetch(10);
     await channel.assertExchange(exchange, 'topic', { durable: true });
 
     const q = await channel.assertQueue('integration_queue', {
@@ -126,7 +125,6 @@ export class AppService implements OnModuleInit {
       const exchange = 'chat_exchange';
       const routingKey = `message.${message.type}`;
 
-      console.log('routing key', routingKey);
 
       const payload = {
         ...message,

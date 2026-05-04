@@ -1,12 +1,4 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import {
-  customers,
-  customerIdentities,
-  conversations,
-  conversationParticipants,
-  messages,
-  channelAccounts,
-} from '@repo/db';
 import { DB_PROVIDER } from './db/db.provide';
 import { QUEUE_PROVIDER } from './queue/queue.provider';
 import { MINIO_PROVIDER } from './minio/minio.provider';
@@ -24,23 +16,6 @@ export class AppService implements OnModuleInit {
     await this.startConsumer();
   }
 
-  async checkDb() {
-    try {
-      const result = await this.db.execute('SELECT 1');
-      return {
-        success: true,
-        message: 'Database connected successfully',
-        data: result,
-      };
-    } catch (error) {
-      console.error('DB Connection Error:', error);
-      return {
-        success: false,
-        message: 'Database connection failed',
-        error,
-      };
-    }
-  }
 
   async startConsumer() {
     const channel = this.queue.channel;
@@ -53,8 +28,7 @@ export class AppService implements OnModuleInit {
     channel.consume(q.queue, async (msg) => {
       try {
         const payload = JSON.parse(msg.content.toString());
-        console.log('payload', payload);
-
+      
         const { raw, accessToken, platform } = payload;
 
         let mediaUrl: string | null = null;

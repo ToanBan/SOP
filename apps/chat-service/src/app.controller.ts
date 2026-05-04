@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Param,
   Post,
   Put,
@@ -15,24 +16,30 @@ import { UpdateCustomerDTO } from './dto/UpdateCustomer';
 import { ReplyMessageDTO } from './dto/ReplayMessageDTO';
 import { CheckRole, ROLES, DecodeAuthGuard } from '@repo/auth';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { REDIS_PROVIDER } from './redis/redis.provider';
+import { CheckBlackList } from './guards/checkblacklist.guard';
+
 @Controller('chat')
+@UseGuards(DecodeAuthGuard, CheckBlackList, CheckRole)
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    @Inject(REDIS_PROVIDER) private readonly redis: any,
+  ) {}
 
   @Get('allcustomer')
+  @ROLES('sales', 'admin', 'marketing')
   async getAllCustomer() {
     return this.appService.getAllCustomers();
   }
 
   @Get('customers')
-  @UseGuards(DecodeAuthGuard, CheckRole)
   @ROLES('sales', 'admin')
   async getCustomers() {
     return this.appService.getCustomers();
   }
 
   @Post('conversation')
-  @UseGuards(DecodeAuthGuard, CheckRole)
   @ROLES('sales', 'admin')
   async getConversation(@Body() dto: MessageRequestDTO) {
     return this.appService.getConversationByCustomer(
@@ -42,14 +49,12 @@ export class AppController {
   }
 
   @Get('messages/:conversationId')
-  @UseGuards(DecodeAuthGuard, CheckRole)
   @ROLES('sales', 'admin')
   async getMessages(@Param('conversationId') conversationId: string) {
     return this.appService.getMessagesByConversationId(conversationId);
   }
 
   @Put('customer/:customerId')
-  @UseGuards(DecodeAuthGuard, CheckRole)
   @ROLES('sales', 'admin')
   async updateCustomer(
     @Body() dto: UpdateCustomerDTO,
@@ -59,7 +64,6 @@ export class AppController {
   }
 
   @Post('reply')
-  @UseGuards(DecodeAuthGuard, CheckRole)
   @ROLES('sales', 'admin')
   @UseInterceptors(FileInterceptor('file'))
   async replyToCustomer(
@@ -75,7 +79,6 @@ export class AppController {
   }
 
   @Get('group')
-  @UseGuards(DecodeAuthGuard, CheckRole)
   @ROLES('sales', 'admin')
   async getConversationGroups() {
     return this.appService.getConversionGroup();

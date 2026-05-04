@@ -20,9 +20,6 @@ import { AuthGuard } from '@nestjs/passport';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-
-
-
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     return await this.appService.register(dto);
@@ -64,7 +61,6 @@ export class AppController {
     }
     return await this.appService.refreshToken(token);
   }
-
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
@@ -131,5 +127,8 @@ export class AppController {
     return res.redirect(`${process.env.FE_URL}/oauth-success`);
   }
 
-
+  @Post('blacklist')
+  async blacklist(@Body('token') token: string) {
+    return this.appService.blacklist(token);
+  }
 }

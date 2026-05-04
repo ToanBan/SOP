@@ -4,13 +4,12 @@ import {
   Injectable,
   OnModuleInit,
 } from '@nestjs/common';
-import { channelAccounts } from '@repo/db';
+import { channelAccounts, eq} from '@repo/db';
 
 import { DB_PROVIDER } from 'src/db/db.provider';
 import { v4 as uuidv4 } from 'uuid';
 import { Client, GatewayIntentBits, Partials, ChannelType } from 'discord.js';
 import { AppService } from 'src/app.service';
-import { eq } from 'drizzle-orm';
 
 @Injectable()
 export class DiscordService implements OnModuleInit {

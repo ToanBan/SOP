@@ -8,7 +8,6 @@ export class DecodeAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
-    console.log("Auth Header nhận được tại Service:", authHeader);
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return false;
     }

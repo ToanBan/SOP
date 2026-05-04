@@ -8,8 +8,12 @@ import {
   conversationParticipants,
   messages,
   channelAccounts,
+  eq,
+  and,
+  desc,
+  asc,
 } from '@repo/db';
-import { eq, and, desc, asc } from 'drizzle-orm';
+
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -25,7 +29,6 @@ export class AppService implements OnModuleInit {
 
   async startConsumer() {
     const channel = this.queue.channel;
-    await channel.prefetch(10);
     const exchange = 'chat_exchange';
 
     await channel.assertExchange(exchange, 'topic', { durable: true });
@@ -36,6 +39,7 @@ export class AppService implements OnModuleInit {
     channel.consume(q.queue, async (msg) => {
       if (!msg) return;
 
+      const start = Date.now();
       try {
         const payload = JSON.parse(msg.content.toString());
         const { raw } = payload;
@@ -118,14 +122,6 @@ export class AppService implements OnModuleInit {
               .set({ lastMessageAt: new Date() })
               .where(eq(conversations.id, currentConversationId));
           }
-
-          const messageResults = await tx
-            .select()
-            .from(messages)
-            .where(eq(messages.externalMessageId, payload.messageExternalId))
-            .limit(1);
-
-          if (messageResults.length === 0) {
             await tx.insert(messages).values({
               id: uuidv4(),
               channelAccountId: payload.channelId,
@@ -138,12 +134,10 @@ export class AppService implements OnModuleInit {
               mediaUrl: payload.mediaUrl,
               externalMessageId: payload.messageExternalId,
               metadata: JSON.stringify(raw),
-            });
-            console.log(
-              `[SUCCESS] Saved message: ${payload.messageExternalId}`,
-            );
-          }
+            });  
         });
+        const duration = Date.now() - start
+        console.log(`Processing time: ${duration}ms`);
 
         channel.ack(msg);
       } catch (error) {

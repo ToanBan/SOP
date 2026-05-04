@@ -10,7 +10,7 @@ import {
   User,
   BluetoothConnectedIcon,
   Megaphone,
-  Target
+  Target,
 } from "lucide-react";
 import type React from "react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -18,61 +18,66 @@ import { useUser } from "../../context/authContext";
 
 const MainLayout: React.FC = () => {
   const { user, logout } = useUser();
+
+
   const rawMenuItems = [
     {
       name: "Dashboard",
       icon: <LayoutDashboard size={20} />,
       path: "/dashboard",
     },
-
     {
       name: "Connections",
       icon: <BluetoothConnectedIcon size={20} />,
       path: "/connections",
-      adminOnly: true,
+      requiredRoles: ["admin"],
     },
     {
       name: "Hội thoại",
       icon: <MessageSquare size={20} />,
       path: "/chat",
+      requiredRoles: ["admin", "sales"],
     },
     {
       name: "Quảng bá",
       icon: <Megaphone size={20} />,
       path: "/marketing",
+      requiredRoles: ["admin", "marketing"],
     },
-
-     {
+    {
       name: "Chiến Dịch",
       icon: <Target size={20} />,
       path: "/campaign",
+      requiredRoles: ["admin", "marketing"],
     },
-
     {
       name: "Khách hàng",
       icon: <Users size={20} />,
       path: "/customers",
+      requiredRoles: ["admin", "sales", "marketing"], 
     },
     {
       name: "Nhân Viên",
       icon: <User size={20} />,
       path: "/admin/sales",
-      adminOnly: true,
+      requiredRoles: ["admin"],
     },
-
     {
       name: "Roles",
       icon: <ShieldCheck size={20} />,
       path: "/admin/roles",
-      adminOnly: true,
+      requiredRoles: ["admin"],
     },
   ];
 
   const menuItems = rawMenuItems.filter((item) => {
-    if (item.adminOnly) {
-      return user?.user?.roles?.includes("admin");
+    if (!item.requiredRoles || item.requiredRoles.length === 0) {
+      return true;
     }
-    return true;
+
+    const userRoles = user?.user?.roles || [];
+
+    return item.requiredRoles.some((role) => userRoles.includes(role));
   });
 
   return (
