@@ -6,8 +6,7 @@ import replyCustomer from "../api/customer/replyCustomer";
 import getConversationByCustomer from "../api/customer/getConversationByCustomer";
 import getMessagesByConversation from "../api/customer/getMessagesByConversation";
 import getGroups from "../api/customer/getGroups";
-
-// --- Types ---
+import { useSocket } from "../hooks/useSocket";
 export type PlatformType = "telegram" | "messenger" | "zalo" | string;
 
 interface Customer {
@@ -37,8 +36,6 @@ interface Message {
   customerName: string;
   mediaUrl?: string | null;
 }
-
-// --- Sub Components ---
 
 const PlatformBadge: React.FC<{ platform: PlatformType }> = ({ platform }) => {
   const config: Record<string, { label: string; color: string }> = {
@@ -227,8 +224,6 @@ const UpdateCustomerModal: React.FC<{
   );
 };
 
-// --- Main Page ---
-
 const ChatPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [groups, setGroups] = useState<GroupProps[]>([]);
@@ -267,7 +262,6 @@ const ChatPage: React.FC = () => {
     fetchData();
   }, []);
 
-  // Tạo preview URL khi chọn file
   useEffect(() => {
     if (!selectedFile) {
       setFilePreviewUrl(null);
@@ -281,7 +275,6 @@ const ChatPage: React.FC = () => {
     setFilePreviewUrl(null);
   }, [selectedFile]);
 
-  // Auto scroll xuống cuối khi có tin nhắn mới
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -338,28 +331,33 @@ const ChatPage: React.FC = () => {
 
   const handleSendMessage = async () => {
     if (!conversationId || (!messageInput.trim() && !selectedFile)) return;
-
     const channelId =
       selectedCustomer?.channelAccountId ||
       selectedGroup?.channelAccountId ||
       "";
 
+    const currentMessage = messageInput;
+    const currentFile = selectedFile;
+
+    setMessageInput("");
+    setSelectedFile(null);
+
     try {
       const res = await replyCustomer(
         conversationId,
-        messageInput,
+        currentMessage,
         channelId,
-        selectedFile,
+        currentFile,
       );
-      if (res.success) {
-        setMessageInput("");
-        setSelectedFile(null);
-        const msgRes = await getMessagesByConversation(conversationId);
-        if (msgRes.success) setMessages(msgRes.data);
-      } else {
+
+      if (!res.success) {
+        setMessageInput(currentMessage);
+        setSelectedFile(currentFile);
         Swal.fire("Lỗi", "Không thể gửi tin nhắn", "error");
       }
     } catch (error) {
+      setMessageInput(currentMessage);
+      setSelectedFile(currentFile);
       console.error(error);
     }
   };
@@ -367,6 +365,11 @@ const ChatPage: React.FC = () => {
   const filteredCustomers = customers.filter((c) =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  useSocket(conversationId || null, (newMessage) => {
+    console.log("new message", newMessage);
+    setMessages((prev) => [...prev, newMessage]);
+  });
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900">

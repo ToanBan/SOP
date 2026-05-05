@@ -6,7 +6,7 @@ import { getDb } from '@repo/db';
   providers: [
     {
       provide: DB_PROVIDER,
-      useFactory: async () => await getDb(),
+      useFactory: getDb,
     },
     SeedService,
   ],

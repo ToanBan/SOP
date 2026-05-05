@@ -16,6 +16,7 @@ import {
 
 import { v4 as uuidv4 } from 'uuid';
 import { REDIS_PROVIDER } from './redis/redis.provider';
+import { ChatGateway } from './gateway/chat.gateway';
 
 @Injectable()
 export class AppService implements OnModuleInit {
@@ -23,6 +24,7 @@ export class AppService implements OnModuleInit {
     @Inject(DB_PROVIDER) private readonly db: any,
     @Inject(QUEUE_PROVIDER) private readonly queue: any,
     @Inject(REDIS_PROVIDER) private readonly redis: any,
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   async onModuleInit() {
@@ -124,23 +126,33 @@ export class AppService implements OnModuleInit {
               .set({ lastMessageAt: new Date() })
               .where(eq(conversations.id, currentConversationId));
           }
-            await tx.insert(messages).values({
-              id: uuidv4(),
-              channelAccountId: payload.channelId,
-              conversationId: currentConversationId,
-              customerId: currentCustomerId,
-              senderType: 'customer',
-              senderId: currentCustomerId,
-              type: payload.type,
-              content: payload.text,
-              mediaUrl: payload.mediaUrl,
-              externalMessageId: payload.messageExternalId,
-              metadata: JSON.stringify(raw),
-            });  
+          const newMessageId = uuidv4();
+          await tx.insert(messages).values({
+            id: newMessageId,
+            channelAccountId: payload.channelId,
+            conversationId: currentConversationId,
+            customerId: currentCustomerId,
+            senderType: 'customer',
+            senderId: currentCustomerId,
+            type: payload.type,
+            content: payload.text,
+            mediaUrl: payload.mediaUrl,
+            externalMessageId: payload.messageExternalId,
+            metadata: JSON.stringify(raw),
+          });
+
+          this.chatGateway.sendNewMessage(currentConversationId, {
+            id: newMessageId,
+            content: payload.text,
+            mediaUrl: payload.mediaUrl,
+            senderType: 'customer',
+            conversationId: currentConversationId,
+            createdAt: new Date(),
+          });
         });
-        await this.redis.del('allcustomer:all')
-        await this.redis.del('customers:all')
-        const duration = Date.now() - start
+        await this.redis.del('allcustomer:all');
+        await this.redis.del('customers:all');
+        const duration = Date.now() - start;
         console.log(`Processing time: ${duration}ms`);
 
         channel.ack(msg);
@@ -152,9 +164,9 @@ export class AppService implements OnModuleInit {
   }
 
   async getAllCustomers() {
-    const cachedKey = "allcustomer:all"
+    const cachedKey = 'allcustomer:all';
     try {
-      const cached = await this.redis.get(cachedKey)
+      const cached = await this.redis.get(cachedKey);
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
       }
@@ -175,7 +187,7 @@ export class AppService implements OnModuleInit {
           eq(customers.id, customerIdentities.customerId),
         );
 
-      await this.redis.set(cachedKey, JSON.stringify(customer), 'EX', 60)
+      await this.redis.set(cachedKey, JSON.stringify(customer), 'EX', 60);
 
       return { success: true, data: customer };
     } catch (error) {
@@ -185,9 +197,9 @@ export class AppService implements OnModuleInit {
   }
 
   async getCustomers() {
-    const cachedKey = "customers:all"
+    const cachedKey = 'customers:all';
     try {
-      const cached = await this.redis.get(cachedKey)
+      const cached = await this.redis.get(cachedKey);
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
       }
@@ -225,7 +237,7 @@ export class AppService implements OnModuleInit {
         )
         .orderBy(desc(customers.lastSeenAt));
 
-      await this.redis.set(cachedKey, JSON.stringify(customersList), 'EX', 60)
+      await this.redis.set(cachedKey, JSON.stringify(customersList), 'EX', 60);
       return { success: true, data: customersList };
     } catch (error) {
       console.error('Get Customers Error:', error);
@@ -340,6 +352,9 @@ export class AppService implements OnModuleInit {
         const res = await fetch(`${process.env.BE_URL}/media/upload`, {
           method: 'POST',
           body: formData,
+          headers: {
+            'x-internal-key': `${process.env.INTERNAL_KEY}`,
+          },
         });
 
         const data = await res.json();
@@ -359,6 +374,15 @@ export class AppService implements OnModuleInit {
         mediaUrl,
         externalMessageId: messageId,
         metadata: JSON.stringify({ sentFrom: 'web' }),
+      });
+
+      this.chatGateway.sendNewMessage(conversationId, {
+        id: messageId,
+        content: message,
+        mediaUrl,
+        senderType: 'agent',
+        conversationId,
+        createdAt: new Date(),
       });
 
       const conversation = await this.db
@@ -402,9 +426,9 @@ export class AppService implements OnModuleInit {
   }
 
   async getConversionGroup() {
-    const cachedKey = "conversations:channel"
+    const cachedKey = 'conversations:channel';
     try {
-      const cached = await this.redis.get(cachedKey)
+      const cached = await this.redis.get(cachedKey);
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
       }
@@ -413,7 +437,12 @@ export class AppService implements OnModuleInit {
         .from(conversations)
         .where(eq(conversations.conversationType, 'channel'));
 
-      await this.redis.set(cachedKey, JSON.stringify(conversationGroups), 'EX', 60)
+      await this.redis.set(
+        cachedKey,
+        JSON.stringify(conversationGroups),
+        'EX',
+        60,
+      );
       return { success: true, data: conversationGroups };
     } catch (error) {
       console.error(error);

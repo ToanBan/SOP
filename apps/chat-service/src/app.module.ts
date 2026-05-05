@@ -5,6 +5,7 @@ import { DbModule } from './db/db.module';
 import { ConfigModule } from '@nestjs/config';
 import { QueueModule } from './queue/queue.module';
 import { RedisModule } from './redis/redis.module';
+import { ChatGateway } from './gateway/chat.gateway';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -16,6 +17,6 @@ import { RedisModule } from './redis/redis.module';
     RedisModule
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, ChatGateway],
 })
 export class AppModule {}

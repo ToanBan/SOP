@@ -16,7 +16,6 @@ export class AppService implements OnModuleInit {
     await this.startConsumer();
   }
 
-
   async startConsumer() {
     const channel = this.queue.channel;
     await channel.prefetch(10);
@@ -28,7 +27,7 @@ export class AppService implements OnModuleInit {
     channel.consume(q.queue, async (msg) => {
       try {
         const payload = JSON.parse(msg.content.toString());
-      
+
         const { raw, accessToken, platform } = payload;
 
         let mediaUrl: string | null = null;
@@ -126,16 +125,21 @@ export class AppService implements OnModuleInit {
   }
 
   async uploadFileToBucket(file: any) {
-    const objectKey = `uploads/${uuidv4()}_${file.originalname}`;
+    try {
+      const objectKey = `uploads/${uuidv4()}_${file.originalname}`;
 
-    await this.minioClient.putObject(
-      process.env.MINIO_BUCKET!,
-      objectKey,
-      file.buffer,
-      file.size,
-      { 'Content-Type': file.mimetype },
-    );
+      await this.minioClient.putObject(
+        process.env.MINIO_BUCKET!,
+        objectKey,
+        file.buffer,
+        file.size,
+        { 'Content-Type': file.mimetype },
+      );
 
-    return `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${process.env.MINIO_BUCKET}/${objectKey}`;
+      return `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${process.env.MINIO_BUCKET}/${objectKey}`;
+    } catch (error) {
+      console.error(error);
+      return {success:false, message: `failed ${error}`}
+    }
   }
 }
