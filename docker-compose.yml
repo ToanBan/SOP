@@ -111,6 +111,61 @@ services:
     networks:
       - sop-network
 
+  socket-service-1:
+    image: node:20-alpine
+    container_name: sop-socket-1
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./apps/socket-service:/app
+      - sop-socket-modules:/app/node_modules
+    command: sh -c "npm install && node dist/main.js"
+    environment:
+      - PORT=4001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - BE_URL=http://kong:8000
+    depends_on:
+      - redis
+    networks:
+      - sop-network
+
+  socket-service-2:
+    image: node:20-alpine
+    container_name: sop-socket-2
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./apps/socket-service:/app
+      - sop-socket-modules:/app/node_modules
+    command: sh -c "node dist/main.js"
+    environment:
+      - PORT=4002
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - BE_URL=http://kong:8000
+    depends_on:
+      - socket-service-1
+      - redis
+    networks:
+      - sop-network
+
+  nginx-socket:
+    image: nginx:alpine
+    container_name: sop-nginx-socket
+    restart: always
+    ports:
+      - "4999:80" # frontend vẫn connect vào 4000 như cũ
+    volumes:
+      - ./nginx.socket.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - socket-service-1
+      - socket-service-2
+    networks:
+      - sop-network
+
   ngrok:
     image: ngrok/ngrok:latest
     container_name: sop-ngrok
@@ -154,3 +209,4 @@ volumes:
   mongo_data:
   kong_db_data:
   minio_data:
+  sop-socket-modules:

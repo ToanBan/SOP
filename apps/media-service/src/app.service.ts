@@ -29,7 +29,7 @@ export class AppService implements OnModuleInit {
         const payload = JSON.parse(msg.content.toString());
 
         const { raw, accessToken, platform } = payload;
-
+        console.log('djaksd', payload);
         let mediaUrl: string | null = null;
 
         if (platform === 'telegram') {
@@ -48,6 +48,14 @@ export class AppService implements OnModuleInit {
             return;
           }
           mediaUrl = await this.uploadDiscordFileToMinio(attachment);
+        } else if (platform == 'facebook') {
+          const attachment = payload.mediaUrl;
+          if (!attachment) {
+            console.error('Không tìm thấy attachment');
+            channel.nack(msg, false, false);
+            return;
+          }
+          mediaUrl = await this.uploadFacebookFileToMinio(attachment);
         }
 
         payload.mediaUrl = mediaUrl;
@@ -124,6 +132,31 @@ export class AppService implements OnModuleInit {
     return mediaUrl;
   }
 
+  async uploadFacebookFileToMinio(mediaUrl: string) {
+    const response = await fetch(mediaUrl);
+
+    const contentType =
+      response.headers.get('content-type') || 'application/octet-stream';
+    const contentLength = parseInt(
+      response.headers.get('content-length') || '0',
+    );
+
+    const nodeStream = Readable.fromWeb(response.body as any);
+
+    const ext = contentType.split('/')[1] || 'bin';
+    const objectKey = `facebook/${uuidv4()}.${ext}`;
+
+    await this.minioClient.putObject(
+      process.env.MINIO_BUCKET!,
+      objectKey,
+      nodeStream,
+      contentLength,
+      { 'Content-Type': contentType },
+    );
+
+    return `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${process.env.MINIO_BUCKET}/${objectKey}`;
+  }
+
   async uploadFileToBucket(file: any) {
     try {
       const objectKey = `uploads/${uuidv4()}_${file.originalname}`;
@@ -139,7 +172,7 @@ export class AppService implements OnModuleInit {
       return `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${process.env.MINIO_BUCKET}/${objectKey}`;
     } catch (error) {
       console.error(error);
-      return {success:false, message: `failed ${error}`}
+      return { success: false, message: `failed ${error}` };
     }
   }
 }

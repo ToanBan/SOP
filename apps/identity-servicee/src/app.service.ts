@@ -301,6 +301,7 @@ export class AppService {
       throw new UnauthorizedException('Token không hợp lệ');
     }
   }
+
   async isTokenBlacklisted(token: string): Promise<boolean> {
     const result = await this.redis.get(`blacklist:${token}`);
     return result === '1';
@@ -495,5 +496,19 @@ export class AppService {
     } catch (error) {
       return { active: false };
     }
+  }
+
+  async checkUser(token: string) {
+    try {
+      if (!token) {
+        throw new UnauthorizedException('Unauthorized');
+      }
+
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: process.env.ACCESS_TOKEN_SECRET,
+      });
+
+      return payload
+    } catch (error) {}
   }
 }

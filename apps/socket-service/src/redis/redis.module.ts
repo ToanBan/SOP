@@ -19,6 +19,6 @@ import { REDIS_PUB } from './redisPub.provider';
       useFactory: getRedisSubscriber,
     },
   ],
-  exports: [REDIS_PROVIDER, REDIS_PUB],
+  exports: [REDIS_PROVIDER, REDIS_SUB],
 })
 export class RedisModule {}

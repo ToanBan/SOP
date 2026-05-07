@@ -27,7 +27,7 @@ export class AppService implements OnModuleInit {
 
   async handleSendTelegram(data: any) {
     const { botToken, chatId, message, mediaUrl } = data;
-
+    console.log('nhắn lại từ telegram');
     if (mediaUrl) {
       const { blob, fileName, contentType } = await this.downloadFile(mediaUrl);
 
@@ -91,6 +91,50 @@ export class AppService implements OnModuleInit {
     }
   }
 
+  async handleSendFacebook(data: any) {
+    const { botToken, chatId, message, mediaUrl } = data;
+    const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${botToken}`;
+    console.log('nhắn lại từ facebook');
+
+    if (mediaUrl) {
+      const { blob, fileName, contentType } = await this.downloadFile(mediaUrl);
+
+      const formData = new FormData();
+      formData.append('recipient', JSON.stringify({ id: chatId }));
+
+      const isImage = contentType.startsWith('image/');
+      formData.append(
+        'message',
+        JSON.stringify({
+          attachment: {
+            type: isImage ? 'image' : 'file',
+            payload: { is_reusable: true },
+          },
+        }),
+      );
+      formData.append('filedata', blob, fileName);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      console.log(data);
+    } else {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient: { id: chatId },
+          message: { text: message },
+        }),
+      });
+
+      const data = await res.json();
+      console.log(data);
+    }
+  }
+
   async startConsumer() {
     const channel = this.queue.channel;
     const exchange = 'chat_exchange';
@@ -101,7 +145,7 @@ export class AppService implements OnModuleInit {
     });
 
     await channel.bindQueue(q.queue, exchange, 'message.reply');
-    await channel.bindQueue(q.queue, exchange, 'message.campaign')
+    await channel.bindQueue(q.queue, exchange, 'message.campaign');
     channel.consume(q.queue, async (msg) => {
       if (!msg) return;
 
@@ -112,6 +156,8 @@ export class AppService implements OnModuleInit {
           await this.handleSendTelegram(payload);
         } else if (payload.platform === 'discord') {
           await this.handleSendDiscord(payload);
+        } else if (payload.platform === 'facebook') {
+          await this.handleSendFacebook(payload);
         }
 
         channel.ack(msg);
@@ -127,11 +173,12 @@ export class AppService implements OnModuleInit {
       const exchange = 'chat_exchange';
       const routingKey = `message.${message.type}`;
 
-
       const payload = {
         ...message,
         timestamp: new Date().toISOString(),
       };
+
+      console.log("djadjksald", routingKey);
 
       this.queue.channel.publish(
         exchange,
@@ -152,7 +199,7 @@ export class AppService implements OnModuleInit {
   }
 
   async getStatis() {
-    const cached = await this.redis.get('statis:all')
+    const cached = await this.redis.get('statis:all');
     try {
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
@@ -186,19 +233,19 @@ export class AppService implements OnModuleInit {
           eq(messages.channelAccountId, channelAccounts.id),
         )
         .groupBy(channelAccounts.platform);
-      
+
       const data = {
         countMessage,
         countCustomer,
         countStaff,
         platformStats,
         customersDb,
-      }
-      await this.redis.set('statis:all', JSON.stringify(data), 'EX', 60)
+      };
+      await this.redis.set('statis:all', JSON.stringify(data), 'EX', 60);
 
       return {
         success: true,
-        data
+        data,
       };
     } catch (error) {
       console.error(error);

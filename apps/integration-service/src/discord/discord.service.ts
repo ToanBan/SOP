@@ -141,7 +141,6 @@ export class DiscordService implements OnModuleInit {
       });
       const bot = await res.json();
 
-      console.log('botttt', bot);
       if (res.status !== 200)
         throw new BadRequestException('Invalid Discord bot token');
 

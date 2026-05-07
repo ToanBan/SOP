@@ -16,7 +16,8 @@ import {
 import handleConnection from "../api/user/handleConnection";
 import Swal from "sweetalert2";
 import handleConnectionDiscord from "../api/user/handleConnectionDiscord";
-
+import handleConnectionFB from "../api/user/handleConnectionFB";
+import getFanpageFB from "../api/integration/getFanpageFB";
 const DiscordIcon = () => (
   <svg
     width="24"
@@ -33,6 +34,21 @@ const DiscordIcon = () => (
     <path d="M7.5 7.5c3.5-1 5.5-1 9 0" />
     <path d="M7 16.5c3.5 1 6.5 1 10 0" />
     <path d="M2 12c0 4.4 3.6 8 8 8 1.5 0 2.8-.4 4-1.1 1.2.7 2.5 1.1 4 1.1 4.4 0 8-3.6 8-8s-3.6-8-8-8c-1.5 0-2.8.4-4 1.1C10.8 4.4 9.5 4 8 4c-4.4 0-8 3.6-8 8z" />
+  </svg>
+);
+
+const FacebookIcon = () => (
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
   </svg>
 );
 
@@ -168,7 +184,6 @@ const DiscordGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
       title: "Cấu hình Privileged Intents",
       desc: "Bật 'Message Content Intent' trong mục Bot để bot có thể đọc được tin nhắn.",
     },
-    
   ];
 
   const handleConnect = async () => {
@@ -240,6 +255,100 @@ const DiscordGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
       </div>
+    </BaseModal>
+  );
+};
+
+const FacebookGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
+  const [userToken, setUserToken] = useState("");
+  const [pages, setPages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedPage, setSelectedPage] = useState<string | null>(null);
+
+  const handleGetPages = async () => {
+    try {
+      setLoading(true);
+     const result = await getFanpageFB(userToken)
+      if (result.success) {
+        setPages(result.pages);
+      } else {
+        Swal.fire("Lỗi", result.message || "Không lấy được fanpage", "error");
+      }
+    } catch (err) {
+      Swal.fire("Lỗi", "API lỗi", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConnect = async () => {
+    if (!selectedPage) {
+      return Swal.fire("Chọn page", "Vui lòng chọn fanpage", "warning");
+    }
+
+    const result = await handleConnectionFB(userToken, selectedPage);
+
+    if (result.success) {
+      Swal.fire("Thành công", "Đã kết nối fanpage", "success");
+      onClose();
+    } else {
+      Swal.fire("Lỗi", result.message, "error");
+    }
+  };
+
+  return (
+    <BaseModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Kết nối Facebook Messenger"
+      subtitle="Chọn fanpage bạn muốn quản lý"
+      icon={<FacebookIcon />}
+      color="from-[#0866FF] to-[#0047AB]"
+    >
+      <div className="space-y-4">
+        <input
+          type="text"
+          value={userToken}
+          onChange={(e) => setUserToken(e.target.value)}
+          placeholder="User Access Token..."
+          className="w-full px-6 py-4 rounded-2xl border-2 border-slate-200 focus:border-[#0866FF]"
+        />
+
+        <button
+          onClick={handleGetPages}
+          className="w-full bg-[#0866FF] text-white py-3 rounded-xl font-bold"
+        >
+          {loading ? "Đang tải..." : "Lấy danh sách fanpage"}
+        </button>
+      </div>
+
+      {pages.length > 0 && (
+        <div className="mt-6 space-y-3 max-h-60 overflow-y-auto">
+          {pages.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => setSelectedPage(p.id)}
+              className={`p-4 border rounded-xl cursor-pointer transition ${
+                selectedPage === p.id
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-slate-200"
+              }`}
+            >
+              <div className="font-bold">{p.name}</div>
+              <div className="text-xs text-gray-500">{p.id}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {pages.length > 0 && (
+        <button
+          onClick={handleConnect}
+          className="mt-6 w-full bg-green-600 text-white py-3 rounded-xl font-bold"
+        >
+          Kết nối fanpage đã chọn
+        </button>
+      )}
     </BaseModal>
   );
 };
@@ -342,7 +451,6 @@ const StepItem = ({ idx, step, copied, setCopied, activeColor }: any) => (
   </div>
 );
 
-// --- Main Page ---
 interface Platform {
   id: string;
   name: string;
@@ -355,7 +463,7 @@ interface Platform {
 const ConnectionPage: React.FC = () => {
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
-
+  const [isFacebookModalOpen, setIsFacebookModalOpen] = useState(false);
   const platforms: Platform[] = [
     {
       id: "telegram",
@@ -375,11 +483,22 @@ const ConnectionPage: React.FC = () => {
         "Tích hợp nhận thông báo và phản hồi tin nhắn từ các server Discord.",
       isConnected: false,
     },
+
+    {
+      id: "messenger",
+      name: "Facebook Messenger",
+      icon: <FacebookIcon />,
+      color: "bg-[#0866FF]",
+      description:
+        "Quản lý tin nhắn từ Fanpage Facebook và phản hồi khách hàng tự động.",
+      isConnected: false,
+    },
   ];
 
   const handleConnect = (id: string) => {
     if (id === "telegram") setIsTelegramModalOpen(true);
     if (id === "discord") setIsDiscordModalOpen(true);
+    if (id === "messenger") setIsFacebookModalOpen(true);
   };
 
   return (
@@ -469,6 +588,11 @@ const ConnectionPage: React.FC = () => {
       <DiscordGuideModal
         isOpen={isDiscordModalOpen}
         onClose={() => setIsDiscordModalOpen(false)}
+      />
+
+      <FacebookGuideModal
+        isOpen={isFacebookModalOpen}
+        onClose={() => setIsFacebookModalOpen(false)}
       />
     </div>
   );

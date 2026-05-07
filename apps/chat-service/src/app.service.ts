@@ -16,15 +16,14 @@ import {
 
 import { v4 as uuidv4 } from 'uuid';
 import { REDIS_PROVIDER } from './redis/redis.provider';
-import { ChatGateway } from './gateway/chat.gateway';
-
+import { REDIS_PUB } from './redis/redisPub.provider';
 @Injectable()
 export class AppService implements OnModuleInit {
   constructor(
     @Inject(DB_PROVIDER) private readonly db: any,
     @Inject(QUEUE_PROVIDER) private readonly queue: any,
     @Inject(REDIS_PROVIDER) private readonly redis: any,
-    private readonly chatGateway: ChatGateway,
+    @Inject(REDIS_PUB) private readonly pub: any,
   ) {}
 
   async onModuleInit() {
@@ -43,10 +42,11 @@ export class AppService implements OnModuleInit {
     channel.consume(q.queue, async (msg) => {
       if (!msg) return;
 
-      const start = Date.now();
       try {
         const payload = JSON.parse(msg.content.toString());
-        const { raw } = payload;
+        const { raw, platform } = payload;
+
+        console.log('full', raw);
         await this.db.transaction(async (tx) => {
           const identityResults = await tx
             .select()
@@ -61,14 +61,19 @@ export class AppService implements OnModuleInit {
 
           let identity = identityResults[0];
           let currentCustomerId: string;
-
           if (!identity) {
             currentCustomerId = uuidv4();
+            const customerName =
+              platform === 'telegram'
+                ? `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}`.trim() ||
+                  raw?.from?.username ||
+                  'Unknown'
+                : platform === 'facebook'
+                  ? `Facebook User ${raw?.sender?.id || ''}`
+                  : 'Unknown';
             await tx.insert(customers).values({
               id: currentCustomerId,
-              name:
-                `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}`.trim() ||
-                `${raw.author.username}`,
+              name: customerName,
               lastSeenAt: new Date(),
             });
 
@@ -141,24 +146,28 @@ export class AppService implements OnModuleInit {
             metadata: JSON.stringify(raw),
           });
 
-          this.chatGateway.sendNewMessage(currentConversationId, {
-            id: newMessageId,
-            content: payload.text,
-            mediaUrl: payload.mediaUrl,
-            senderType: 'customer',
-            conversationId: currentConversationId,
-            createdAt: new Date(),
-          });
+          await this.pub.publish(
+            'new_message',
+            JSON.stringify({
+              conversationId: currentConversationId,
+              message: {
+                id: newMessageId,
+                content: payload.text,
+                mediaUrl: payload.mediaUrl,
+                senderType: 'customer',
+                createdAt: new Date(),
+              },
+            }),
+          );
+
+          await this.redis.del('allcustomer:all');
+          await this.redis.del('customers:all');
         });
-        await this.redis.del('allcustomer:all');
-        await this.redis.del('customers:all');
-        const duration = Date.now() - start;
-        console.log(`Processing time: ${duration}ms`);
 
         channel.ack(msg);
       } catch (error) {
         console.error('[ERROR] Consumer Transaction:', error);
-        channel.nack(msg, false, true);
+        channel.nack(msg, false, false);
       }
     });
   }
@@ -376,14 +385,19 @@ export class AppService implements OnModuleInit {
         metadata: JSON.stringify({ sentFrom: 'web' }),
       });
 
-      this.chatGateway.sendNewMessage(conversationId, {
-        id: messageId,
-        content: message,
-        mediaUrl,
-        senderType: 'agent',
-        conversationId,
-        createdAt: new Date(),
-      });
+      await this.pub.publish(
+        'new_message',
+        JSON.stringify({
+          conversationId,
+          message: {
+            id: messageId,
+            content: message,
+            mediaUrl,
+            senderType: 'agent',
+            createdAt: new Date(),
+          },
+        }),
+      );
 
       const conversation = await this.db
         .select()
