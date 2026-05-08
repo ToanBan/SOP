@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { getAccessToken } from "../context/tokenStore";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:4999";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:4000";
 
 let socket: Socket | null = null;
 
@@ -10,10 +10,9 @@ function initSocket() {
   if (socket) return socket;
 
   const token = getAccessToken();
-  console.log(token);
 
   socket = io(SOCKET_URL, {
-    transports: ["websocket"],
+    transports: ['websocket'],
     reconnection: true,
     reconnectionAttempts: 10,
     reconnectionDelay: 1000,

@@ -31,7 +31,7 @@ export class RedisIoAdapter extends IoAdapter {
     } else {
       console.warn('RedisIoAdapter Warning: Redis adapter not initialized, using default adapter');
     }
-    
+  
     return server;
   }
 }

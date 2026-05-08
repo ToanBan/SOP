@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import { ChatGateway } from './gateway/chat.gateway';
 import { RedisModule } from './redis/redis.module';
+import { MessageSubscriberService } from './gateway/message_subcriber';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -13,6 +14,6 @@ import { RedisModule } from './redis/redis.module';
     RedisModule
   ],
   controllers: [AppController],
-  providers: [AppService, ChatGateway],
+  providers: [AppService, ChatGateway, MessageSubscriberService],
 })
 export class AppModule {}
