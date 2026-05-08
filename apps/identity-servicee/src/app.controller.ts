@@ -131,4 +131,9 @@ export class AppController {
   async blacklist(@Body('token') token: string) {
     return this.appService.blacklist(token);
   }
+
+  @Post('verify')
+  async checkUser(@Body('token') token: string) {
+    return this.appService.checkUser(token);
+  }
 }

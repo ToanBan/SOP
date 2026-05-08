@@ -16,13 +16,14 @@ import {
 
 import { v4 as uuidv4 } from 'uuid';
 import { REDIS_PROVIDER } from './redis/redis.provider';
-
+import { REDIS_PUB } from './redis/redisPub.provider';
 @Injectable()
 export class AppService implements OnModuleInit {
   constructor(
     @Inject(DB_PROVIDER) private readonly db: any,
     @Inject(QUEUE_PROVIDER) private readonly queue: any,
     @Inject(REDIS_PROVIDER) private readonly redis: any,
+    @Inject(REDIS_PUB) private readonly pub: any,
   ) {}
 
   async onModuleInit() {
@@ -41,10 +42,11 @@ export class AppService implements OnModuleInit {
     channel.consume(q.queue, async (msg) => {
       if (!msg) return;
 
-      const start = Date.now();
       try {
         const payload = JSON.parse(msg.content.toString());
-        const { raw } = payload;
+        const { raw, platform } = payload;
+
+        console.log('full', raw);
         await this.db.transaction(async (tx) => {
           const identityResults = await tx
             .select()
@@ -59,14 +61,19 @@ export class AppService implements OnModuleInit {
 
           let identity = identityResults[0];
           let currentCustomerId: string;
-
           if (!identity) {
             currentCustomerId = uuidv4();
+            const customerName =
+              platform === 'telegram'
+                ? `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}`.trim() ||
+                  raw?.from?.username ||
+                  'Unknown'
+                : platform === 'facebook'
+                  ? `Facebook User ${raw?.sender?.id || ''}`
+                  : 'Unknown';
             await tx.insert(customers).values({
               id: currentCustomerId,
-              name:
-                `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}`.trim() ||
-                `${raw.author.username}`,
+              name: customerName,
               lastSeenAt: new Date(),
             });
 
@@ -124,37 +131,51 @@ export class AppService implements OnModuleInit {
               .set({ lastMessageAt: new Date() })
               .where(eq(conversations.id, currentConversationId));
           }
-            await tx.insert(messages).values({
-              id: uuidv4(),
-              channelAccountId: payload.channelId,
+          const newMessageId = uuidv4();
+          await tx.insert(messages).values({
+            id: newMessageId,
+            channelAccountId: payload.channelId,
+            conversationId: currentConversationId,
+            customerId: currentCustomerId,
+            senderType: 'customer',
+            senderId: currentCustomerId,
+            type: payload.type,
+            content: payload.text,
+            mediaUrl: payload.mediaUrl,
+            externalMessageId: payload.messageExternalId,
+            metadata: JSON.stringify(raw),
+          });
+
+          await this.pub.publish(
+            'new_message',
+            JSON.stringify({
               conversationId: currentConversationId,
-              customerId: currentCustomerId,
-              senderType: 'customer',
-              senderId: currentCustomerId,
-              type: payload.type,
-              content: payload.text,
-              mediaUrl: payload.mediaUrl,
-              externalMessageId: payload.messageExternalId,
-              metadata: JSON.stringify(raw),
-            });  
+              message: {
+                id: newMessageId,
+                content: payload.text,
+                mediaUrl: payload.mediaUrl,
+                senderType: 'customer',
+                createdAt: new Date(),
+              },
+            }),
+          );
+
+          await this.redis.del('allcustomer:all');
+          await this.redis.del('customers:all');
         });
-        await this.redis.del('allcustomer:all')
-        await this.redis.del('customers:all')
-        const duration = Date.now() - start
-        console.log(`Processing time: ${duration}ms`);
 
         channel.ack(msg);
       } catch (error) {
         console.error('[ERROR] Consumer Transaction:', error);
-        channel.nack(msg, false, true);
+        channel.nack(msg, false, false);
       }
     });
   }
 
   async getAllCustomers() {
-    const cachedKey = "allcustomer:all"
+    const cachedKey = 'allcustomer:all';
     try {
-      const cached = await this.redis.get(cachedKey)
+      const cached = await this.redis.get(cachedKey);
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
       }
@@ -175,7 +196,7 @@ export class AppService implements OnModuleInit {
           eq(customers.id, customerIdentities.customerId),
         );
 
-      await this.redis.set(cachedKey, JSON.stringify(customer), 'EX', 60)
+      await this.redis.set(cachedKey, JSON.stringify(customer), 'EX', 60);
 
       return { success: true, data: customer };
     } catch (error) {
@@ -185,9 +206,9 @@ export class AppService implements OnModuleInit {
   }
 
   async getCustomers() {
-    const cachedKey = "customers:all"
+    const cachedKey = 'customers:all';
     try {
-      const cached = await this.redis.get(cachedKey)
+      const cached = await this.redis.get(cachedKey);
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
       }
@@ -225,7 +246,7 @@ export class AppService implements OnModuleInit {
         )
         .orderBy(desc(customers.lastSeenAt));
 
-      await this.redis.set(cachedKey, JSON.stringify(customersList), 'EX', 60)
+      await this.redis.set(cachedKey, JSON.stringify(customersList), 'EX', 60);
       return { success: true, data: customersList };
     } catch (error) {
       console.error('Get Customers Error:', error);
@@ -340,6 +361,9 @@ export class AppService implements OnModuleInit {
         const res = await fetch(`${process.env.BE_URL}/media/upload`, {
           method: 'POST',
           body: formData,
+          headers: {
+            'x-internal-key': `${process.env.INTERNAL_KEY}`,
+          },
         });
 
         const data = await res.json();
@@ -360,6 +384,20 @@ export class AppService implements OnModuleInit {
         externalMessageId: messageId,
         metadata: JSON.stringify({ sentFrom: 'web' }),
       });
+
+      await this.pub.publish(
+        'new_message',
+        JSON.stringify({
+          conversationId,
+          message: {
+            id: messageId,
+            content: message,
+            mediaUrl,
+            senderType: 'agent',
+            createdAt: new Date(),
+          },
+        }),
+      );
 
       const conversation = await this.db
         .select()
@@ -402,9 +440,9 @@ export class AppService implements OnModuleInit {
   }
 
   async getConversionGroup() {
-    const cachedKey = "conversations:channel"
+    const cachedKey = 'conversations:channel';
     try {
-      const cached = await this.redis.get(cachedKey)
+      const cached = await this.redis.get(cachedKey);
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
       }
@@ -413,7 +451,12 @@ export class AppService implements OnModuleInit {
         .from(conversations)
         .where(eq(conversations.conversationType, 'channel'));
 
-      await this.redis.set(cachedKey, JSON.stringify(conversationGroups), 'EX', 60)
+      await this.redis.set(
+        cachedKey,
+        JSON.stringify(conversationGroups),
+        'EX',
+        60,
+      );
       return { success: true, data: conversationGroups };
     } catch (error) {
       console.error(error);

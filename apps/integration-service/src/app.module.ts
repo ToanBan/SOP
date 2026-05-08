@@ -10,6 +10,8 @@ import { QueueModule } from './queue/queue.module';
 import { DiscordService } from './discord/discord.service';
 import { DiscordController } from './discord/discord.controller';
 import { RedisModule } from './redis/redis.module';
+import { FacebookController } from './facebook/facebook.controller';
+import { FacebookService } from './facebook/facebook.service';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -20,7 +22,7 @@ import { RedisModule } from './redis/redis.module';
     QueueModule,
     RedisModule
   ],
-  controllers: [AppController, WebhookController, TelegramController, DiscordController],
-  providers: [AppService, TelegramService, DiscordService],
+  controllers: [AppController, WebhookController, TelegramController, DiscordController, FacebookController],
+  providers: [AppService, TelegramService, DiscordService, FacebookService],
 })
 export class AppModule {}

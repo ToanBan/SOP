@@ -50,8 +50,6 @@ export class AppService {
 
       await this.redis.set(cacheKey, JSON.stringify(conversationsDb), 'EX', 60);
 
-
-      console.log(conversationsDb);
       return { success: true, data: conversationsDb };
     } catch (error) {
       console.error(error);
@@ -66,7 +64,7 @@ export class AppService {
     files?: any[],
   ) {
     try {
-      let mediaUrls: { url: string; type: string }[] = [];
+      let mediaUrls: [] = [];
 
       if (files && files.length > 0) {
         const formData = new FormData();

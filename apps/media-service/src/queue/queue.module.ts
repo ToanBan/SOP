@@ -5,7 +5,7 @@ import { connectionQueue } from '@repo/queue';
   providers: [
     {
       provide: QUEUE_PROVIDER,
-      useFactory: async () => await connectionQueue(),
+      useFactory: connectionQueue,
     },
   ],
   exports: [QUEUE_PROVIDER],

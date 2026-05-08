@@ -5,6 +5,7 @@ import { DbModule } from './db/db.module';
 import { ConfigModule } from '@nestjs/config';
 import { QueueModule } from './queue/queue.module';
 import { RedisModule } from './redis/redis.module';
+import { JwtModule } from '@nestjs/jwt';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -13,7 +14,10 @@ import { RedisModule } from './redis/redis.module';
     }),
     DbModule,
     QueueModule,
-    RedisModule
+    RedisModule,
+    JwtModule.register({
+      secret:process.env.ACCESS_TOKEN,
+    })
   ],
   controllers: [AppController],
   providers: [AppService],

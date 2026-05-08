@@ -1,28 +1,32 @@
 import {
   Controller,
   Get,
+  Headers,
   Post,
+  UnauthorizedException,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { AppService } from './app.service';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { CheckBlackList } from './guards/checkblacklist.guard';
-import { CheckRole, ROLES } from '@repo/auth';
 
 @Controller('media')
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  
-
   @Post('upload')
-  @UseGuards(CheckBlackList, CheckRole)
-  @ROLES('admin', 'marketing')
   @UseInterceptors(FilesInterceptor('files', 10))
-  async upload(@UploadedFiles() files: any) {
+  async upload(
+    @UploadedFiles() files: any,
+    @Headers('x-internal-key') secret: string,
+  ) {
     try {
+
+      if (secret !== process.env.INTERNAL_KEY) {
+        throw new UnauthorizedException('Invalid internal secret');
+      }
+
       const urls = await Promise.all(
         files.map((file) => this.appService.uploadFileToBucket(file)),
       );
