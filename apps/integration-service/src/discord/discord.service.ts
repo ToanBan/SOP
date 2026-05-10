@@ -4,7 +4,7 @@ import {
   Injectable,
   OnModuleInit,
 } from '@nestjs/common';
-import { channelAccounts, eq} from '@repo/db';
+import { channelAccounts, eq } from '@repo/db';
 
 import { DB_PROVIDER } from 'src/db/db.provider';
 import { v4 as uuidv4 } from 'uuid';
@@ -21,8 +21,7 @@ export class DiscordService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    console.log('Đang khởi tạo Bot Discord ');
-
+ 
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -42,7 +41,7 @@ export class DiscordService implements OnModuleInit {
     });
 
     this.client.on('clientReady', () => {
-      console.log(`Kết nối thành công! Bot: ${this.client.user?.tag}`);
+      console.log(`Connected! Bot: ${this.client.user?.tag}`);
     });
 
     this.client.on('raw', async (data) => {
@@ -61,21 +60,21 @@ export class DiscordService implements OnModuleInit {
           .limit(1);
 
         if (!channelAccount) {
-          console.error('Không tìm thấy channelAccount cho bot:', botId);
+          console.error('Not channelAccount Bot:', botId);
           return;
         }
 
         const d = data.d;
-        console.log("dataaa", data);
-        const attachment = d.attachments?.[0];
-        console.log("attttt", attachment);
+        const attachments = d.attachments || [];
         let type = 'text';
-        let mediaUrl = null;
+        let mediaUrls: string[] = [];
 
-        if (attachment) {
-          mediaUrl = attachment.proxy_url;
-          type = "media"
+        if (attachments.length > 0) {
+          mediaUrls = attachments.map((a: any) => a.proxy_url);
+          type = 'media';
         }
+
+        console.log("media urls", mediaUrls);
         const conversationType = d.guild_id ? 'channel' : 'direct';
         const normalized = {
           channelId: channelAccount.id,
@@ -86,53 +85,26 @@ export class DiscordService implements OnModuleInit {
           conversationType,
           type,
           text: d.content || null,
-          mediaUrl,
+          mediaUrls,
           raw: d,
         };
 
         await this.appService.pushMessageToQueue(normalized);
-      } catch (err) {
-        console.error('Lỗi xử lý Discord message:', err);
+      } catch (error) {
+        return {success:false, message:`Failed ${error}`}
       }
     });
 
-
-    
     this.client.on('error', (error) => {
-      console.error('Lỗi Discord Client:', error);
+      console.error('Error Discord Client:', error);
     });
 
     this.client.login(process.env.DISCORD_BOT_TOKEN).catch((err) => {
-      console.error('Lỗi Login:', err.message);
+      console.error('Error Login:', err.message);
     });
   }
 
-  private normalizeMessage(channelId: string, message: any) {
-    const attachment = message.attachments?.first();
-    let type = 'text';
-    let mediaUrl = null;
-
-    if (attachment) {
-      const contentType = attachment.contentType || '';
-      if (contentType.startsWith('image/')) type = 'image';
-      else if (contentType.startsWith('video/')) type = 'video';
-      else type = 'file';
-
-      mediaUrl = attachment.url;
-    }
-
-    return {
-      channelId,
-      platform: 'discord',
-      conversationExternalId: message.channelId,
-      customerExternalId: message.author.id,
-      messageExternalId: message.id,
-      type,
-      text: message.content || null,
-      mediaUrl,
-      raw: message,
-    };
-  }
+  
 
   async connectDiscord(botToken: string, userId: string) {
     try {
@@ -160,7 +132,6 @@ export class DiscordService implements OnModuleInit {
       );
 
       const guilds = await guildsRes.json();
-      console.log('guidddddddd', guilds);
       const guildId = guilds[0].id;
 
       const channelsRes = await fetch(
@@ -171,7 +142,6 @@ export class DiscordService implements OnModuleInit {
       );
       const channels = await channelsRes.json();
 
-      console.log('channell', channels);
       const textChannel = channels.find((c: any) => c.type === 0);
 
       const webhookRes = await fetch(
@@ -186,8 +156,6 @@ export class DiscordService implements OnModuleInit {
         },
       );
       const webhook = await webhookRes.json();
-
-      console.log('đạhạkdksa', webhook);
 
       const channelId = uuidv4();
       await this.db.insert(channelAccounts).values({

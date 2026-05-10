@@ -234,13 +234,12 @@ const CampaignPage: React.FC = () => {
             <button className="p-3.5 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
               <Filter size={20} />
             </button>
-            <button className="flex items-center gap-2 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 text-sm">
+            <a href="/marketing" className="flex items-center gap-2 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 text-sm">
               <Plus size={18} /> Tạo mới
-            </button>
+            </a>
           </div>
         </div>
 
-        {/* Content Grid */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24">
             <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>

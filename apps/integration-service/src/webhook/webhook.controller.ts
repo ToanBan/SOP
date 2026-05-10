@@ -10,14 +10,14 @@ import {
 import { AppService } from 'src/app.service';
 import { DB_PROVIDER } from 'src/db/db.provider';
 import { channelAccounts, eq } from '@repo/db';
-import { platform } from 'node:os';
-import { url } from 'node:inspector';
+import { REDIS_PROVIDER } from 'src/redis/redis.provider';
 
 @Controller('webhooks')
 export class WebhookController {
   constructor(
     private readonly appService: AppService,
     @Inject(DB_PROVIDER) private readonly db: any,
+    @Inject(REDIS_PROVIDER) private readonly redis: any,
   ) {}
 
   private normalizeTelegramMessage(
@@ -25,18 +25,17 @@ export class WebhookController {
     message: any,
     accessToken: string,
   ) {
-    const hasText = message.text;
-    const hasDocument = message.document;
-
     let type = 'text';
-    let mediaUrl = null;
+    let mediaUrls: string[] = [];
 
-    if (hasDocument) {
+    if (message.document) {
       type = 'media';
-      mediaUrl = message.document.file_id;
+      mediaUrls = [message.document.file_id];
+    } else if (message.photo) {
+      type = 'media';
+      const largest = message.photo[message.photo.length - 1];
+      mediaUrls = [largest.file_id];
     }
-
-    console.log(type);
 
     return {
       channelId,
@@ -46,7 +45,7 @@ export class WebhookController {
       messageExternalId: message.message_id.toString(),
       type,
       text: message.text || null,
-      mediaUrl,
+      mediaUrls,
       accessToken,
       raw: message,
     };
@@ -59,21 +58,42 @@ export class WebhookController {
   ) {
     try {
       const message = body.message;
-
+      if (!message) return { ok: true };
       const channelAccount = await this.db
         .select({ accessToken: channelAccounts.accessToken })
         .from(channelAccounts)
         .where(eq(channelAccounts.id, channelId));
 
       const accessToken = channelAccount[0].accessToken;
-      if (!message) return { ok: true };
       const normalized = this.normalizeTelegramMessage(
         channelId,
         message,
         accessToken,
       );
-      await this.appService.pushMessageToQueue(normalized);
-      return { success: true };
+
+      if (!message.media_group_id) {
+        await this.appService.pushMessageToQueue(normalized);
+        return { ok: true };
+      }
+      const redisKey = `tg_group:${message.media_group_id}`;
+      const existing = await this.redis.get(redisKey);
+      let buffer: any;
+      if (!existing) {
+        buffer = normalized;
+        await this.redis.set(redisKey, JSON.stringify(buffer), 'PX', 2000);
+      } else {
+        buffer = JSON.parse(existing);
+        if (message.document?.file_id) {
+          const fileId = message.document.file_id;
+
+          if (!buffer.mediaUrls.includes(fileId)) {
+            buffer.mediaUrls.push(fileId);
+          }
+        }
+        await this.appService.pushMessageToQueue(buffer);
+      }
+
+      return { ok: true };
     } catch (error) {
       console.error('Error handling Telegram webhook:', error);
       return { success: false, message: 'Failed to handle Telegram webhook' };
@@ -100,15 +120,12 @@ export class WebhookController {
     const attachments = message.attachments;
 
     let type = 'text';
-    let mediaUrl = null;
+    let mediaUrls: string[] = [];
 
     if (attachments?.length) {
       type = 'media';
-      mediaUrl = attachments[0].payload?.url ?? null;
+      mediaUrls = attachments.map((a: any) => a.payload?.url).filter(Boolean);
     }
-
-    console.log(mediaUrl);
-    console.log(type);
 
     return {
       channelId,
@@ -118,36 +135,70 @@ export class WebhookController {
       messageExternalId: message.mid.toString(),
       type,
       text: message.text || null,
-      mediaUrl,
+      mediaUrls,
       raw: event,
     };
   }
 
   @Post('facebook')
   async handleFacebookWebhook(@Body() body: any) {
-    if (!body.entry?.length) return 'EVENT_RECEIVED';
+    try {
+      if (!body.entry?.length) return 'EVENT_RECEIVED';
+      const data = body.entry[0];
+      const externalId = data.id;
 
-    const data = body.entry[0];
-    const externalId = data.id;
+      const channelAccount = await this.db
+        .select({
+          accessToken: channelAccounts.accessToken,
+          channelId: channelAccounts.id,
+        })
+        .from(channelAccounts)
+        .where(eq(channelAccounts.externalId, externalId));
 
-    const channelAccount = await this.db
-      .select({
-        accessToken: channelAccounts.accessToken,
-        channelId: channelAccounts.id,
-      })
-      .from(channelAccounts)
-      .where(eq(channelAccounts.externalId, externalId));
+      if (!channelAccount.length) return 'EVENT_RECEIVED';
+      const { channelId } = channelAccount[0];
 
-    if (!channelAccount.length) return 'EVENT_RECEIVED';
+      for (const event of data.messaging) {
+        if (!event.message) continue;
 
-    const { channelId } = channelAccount[0];
+        const normalized = this.normalizeFacebookMessage(channelId, event);
 
-    for (const event of data.messaging) {
-      if (!event.message) continue;
-      const normalized = this.normalizeFacebookMessage(channelId, event);
-      await this.appService.pushMessageToQueue(normalized);
+        if (!normalized.mediaUrls.length) {
+          await this.appService.pushMessageToQueue(normalized);
+          continue;
+        }
+
+        const senderId = event.sender.id;
+        const redisKey = `fb_group:${senderId}`;
+        const existing = await this.redis.get(redisKey);
+
+        if (!existing) {
+          await this.redis.set(
+            redisKey,
+            JSON.stringify(normalized),
+            'PX',
+            2000,
+          );
+          setTimeout(async () => {
+            const current = await this.redis.get(redisKey);
+            if (!current) return;
+            await this.redis.del(redisKey);
+            await this.appService.pushMessageToQueue(JSON.parse(current));
+          }, 2000);
+        } else {
+          const buffer = JSON.parse(existing);
+          for (const url of normalized.mediaUrls) {
+            if (!buffer.mediaUrls.includes(url)) {
+              buffer.mediaUrls.push(url);
+            }
+          }
+          await this.appService.pushMessageToQueue(buffer);
+        }
+      }
+
+      return 'EVENT_RECEIVED';
+    } catch (error) {
+      return {success:false, message:`Failed ${error}`}
     }
-
-    return 'EVENT_RECEIVED';
   }
 }

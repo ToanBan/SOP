@@ -18,22 +18,12 @@ export class AppController {
   @Post('upload')
   @UseInterceptors(FilesInterceptor('files', 10))
   async upload(
-    @UploadedFiles() files: any,
+    @UploadedFiles() files: any[],
     @Headers('x-internal-key') secret: string,
   ) {
-    try {
-
-      if (secret !== process.env.INTERNAL_KEY) {
-        throw new UnauthorizedException('Invalid internal secret');
-      }
-
-      const urls = await Promise.all(
-        files.map((file) => this.appService.uploadFileToBucket(file)),
-      );
-      return urls;
-    } catch (error) {
-      console.error('Upload error:', error);
-      return { success: false, message: `Upload thất bại ${error}` };
+    if (secret !== process.env.INTERNAL_KEY) {
+      throw new UnauthorizedException('Invalid internal secret');
     }
+    return this.appService.uploadFileToBucket(files);
   }
 }

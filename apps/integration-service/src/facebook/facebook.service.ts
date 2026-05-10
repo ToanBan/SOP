@@ -55,6 +55,8 @@ export class FacebookService {
 
       const pageAccessToken = page.access_token;
 
+      console.log(pageAccessToken);
+
       const existed = await this.db
         .select()
         .from(channelAccounts)

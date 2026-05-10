@@ -12,6 +12,8 @@ import {
   and,
   desc,
   asc,
+  messageAttachments,
+  inArray,
 } from '@repo/db';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -46,7 +48,6 @@ export class AppService implements OnModuleInit {
         const payload = JSON.parse(msg.content.toString());
         const { raw, platform } = payload;
 
-        console.log('full', raw);
         await this.db.transaction(async (tx) => {
           const identityResults = await tx
             .select()
@@ -65,12 +66,14 @@ export class AppService implements OnModuleInit {
             currentCustomerId = uuidv4();
             const customerName =
               platform === 'telegram'
-                ? `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}`.trim() ||
+                ? `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}` ||
                   raw?.from?.username ||
                   'Unknown'
                 : platform === 'facebook'
                   ? `Facebook User ${raw?.sender?.id || ''}`
-                  : 'Unknown';
+                  : platform === 'discord'
+                    ? `${raw.author.username}`
+                    : 'Unknown';
             await tx.insert(customers).values({
               id: currentCustomerId,
               name: customerName,
@@ -141,10 +144,20 @@ export class AppService implements OnModuleInit {
             senderId: currentCustomerId,
             type: payload.type,
             content: payload.text,
-            mediaUrl: payload.mediaUrl,
             externalMessageId: payload.messageExternalId,
             metadata: JSON.stringify(raw),
           });
+
+          if (payload.mediaUrls?.length) {
+            await tx.insert(messageAttachments).values(
+              payload.mediaUrls.map((url: string) => ({
+                id: uuidv4(),
+                messageId: newMessageId,
+                url,
+                type: payload.type,
+              })),
+            );
+          }
 
           await this.pub.publish(
             'new_message',
@@ -153,7 +166,7 @@ export class AppService implements OnModuleInit {
               message: {
                 id: newMessageId,
                 content: payload.text,
-                mediaUrl: payload.mediaUrl,
+                mediaUrls: payload.mediaUrls || [],
                 senderType: 'customer',
                 createdAt: new Date(),
               },
@@ -166,7 +179,7 @@ export class AppService implements OnModuleInit {
 
         channel.ack(msg);
       } catch (error) {
-        console.error('[ERROR] Consumer Transaction:', error);
+        console.error('ERROR Consumer Transaction:', error);
         channel.nack(msg, false, false);
       }
     });
@@ -250,7 +263,7 @@ export class AppService implements OnModuleInit {
       return { success: true, data: customersList };
     } catch (error) {
       console.error('Get Customers Error:', error);
-      return { success: false, message: 'Failed to get customers' };
+      return { success: false, message: `Failed ${error}` };
     }
   }
 
@@ -281,7 +294,7 @@ export class AppService implements OnModuleInit {
 
       return { success: true, data: result[0] || null };
     } catch (error) {
-      return { success: false, message: 'Failed to get conversation' };
+      return { success: false, message: `Failed ${error}`  };
     }
   }
 
@@ -294,20 +307,39 @@ export class AppService implements OnModuleInit {
           senderType: messages.senderType,
           createdAt: messages.createdAt,
           customerName: customers.name,
-          mediaUrl: messages.mediaUrl,
         })
         .from(messages)
         .leftJoin(customers, eq(messages.customerId, customers.id))
         .where(eq(messages.conversationId, conversationId))
         .orderBy(asc(messages.createdAt));
 
-      return { success: true, data: result };
+      const messageIds = result.map((m: any) => m.id);
+      const attachments = messageIds.length
+        ? await this.db
+            .select()
+            .from(messageAttachments)
+            .where(inArray(messageAttachments.messageId, messageIds))
+        : [];
+
+      const data = result.map((m: any) => ({
+        ...m,
+        mediaUrls: attachments
+          .filter((a: any) => a.messageId === m.id)
+          .map((a: any) => a.url),
+      }));
+
+      return { success: true, data };
     } catch (error) {
-      return { success: false, message: 'Failed to get messages' };
+      return { success: false, message: `Failed ${error}` };
     }
   }
 
-  async updateCustomer(customerId: string, email?: string, phone?: string) {
+  async updateCustomer(
+    customerId: string,
+    email?: string,
+    phone?: string,
+    name?: string,
+  ) {
     try {
       const results = await this.db
         .select()
@@ -318,7 +350,7 @@ export class AppService implements OnModuleInit {
       const existingCustomer = results[0];
 
       if (!existingCustomer) {
-        return { success: false, message: 'Không tìm thấy khách hàng' };
+        return { success: false, message: 'Not found Customer' };
       }
       const dataToUpdate = {};
       if (email) {
@@ -327,17 +359,24 @@ export class AppService implements OnModuleInit {
       if (phone) {
         dataToUpdate['phone'] = phone;
       }
+
+      if (name) {
+        dataToUpdate['name'] = name;
+      }
+
       if (Object.keys(dataToUpdate).length === 0) {
-        return { success: true, message: 'Không có thông tin gì để cập nhật' };
+        return { success: true, message: 'nothing something to update' };
       }
       await this.db
         .update(customers)
         .set(dataToUpdate)
         .where(eq(customers.id, customerId));
-      return { success: true, message: 'Cập nhật thành công' };
+
+      await this.redis.del('customers:all');
+      return { success: true, message: 'Update successfully' };
     } catch (error) {
       console.error('Update Customer Error:', error);
-      return { success: false, message: 'Lỗi hệ thống khi cập nhật' };
+      return { success: false, message: `Failed ${error}` };
     }
   }
 
@@ -345,30 +384,32 @@ export class AppService implements OnModuleInit {
     conversationId: string,
     message: string,
     channelAccountId: string,
-    file: any | null,
+    files: any[],
   ) {
     try {
-      let mediaUrl: string | null = null;
+      let mediaUrls: string[] = [];
 
-      if (file) {
+      if (files.length > 0) {
         const formData = new FormData();
-        formData.append(
-          'files',
-          new Blob([file.buffer], { type: file.mimetype }),
-          file.originalname,
-        );
+        files.forEach((file) => {
+          formData.append(
+            'files',
+            new Blob([file.buffer], { type: file.mimetype }),
+            file.originalname,
+          );
+        });
 
         const res = await fetch(`${process.env.BE_URL}/media/upload`, {
           method: 'POST',
           body: formData,
-          headers: {
-            'x-internal-key': `${process.env.INTERNAL_KEY}`,
-          },
+          headers: { 'x-internal-key': `${process.env.INTERNAL_KEY}` },
         });
 
-        const data = await res.json();
+        console.log(process.env.INTERNAL_KEY);
+        console.log(process.env.BE_URL)
 
-        mediaUrl = data[0];
+        mediaUrls = await res.json();
+        console.log(mediaUrls);
       }
 
       const messageId = uuidv4();
@@ -378,12 +419,22 @@ export class AppService implements OnModuleInit {
         conversationId,
         senderType: 'agent',
         senderId: 'agent',
-        type: file ? 'file' : 'text',
+        type: files.length > 0 ? 'media' : 'text',
         content: message,
-        mediaUrl,
         externalMessageId: messageId,
         metadata: JSON.stringify({ sentFrom: 'web' }),
       });
+
+      if (mediaUrls.length > 0) {
+        await this.db.insert(messageAttachments).values(
+          mediaUrls.map((url) => ({
+            id: uuidv4(),
+            messageId,
+            url,
+            type: 'file',
+          })),
+        );
+      }
 
       await this.pub.publish(
         'new_message',
@@ -392,7 +443,7 @@ export class AppService implements OnModuleInit {
           message: {
             id: messageId,
             content: message,
-            mediaUrl,
+            mediaUrls,
             senderType: 'agent',
             createdAt: new Date(),
           },
@@ -405,9 +456,7 @@ export class AppService implements OnModuleInit {
         .where(eq(conversations.id, conversationId))
         .limit(1);
 
-      if (!conversation[0]) {
-        throw new Error('Conversation not found');
-      }
+      if (!conversation[0]) throw new Error('Conversation not found');
 
       const externalConversationId = conversation[0].externalConversationId;
       const channel = await this.db
@@ -425,7 +474,7 @@ export class AppService implements OnModuleInit {
             message,
             botToken: channel[0].accessToken,
             platform: channel[0].platform,
-            mediaUrl,
+            mediaUrls, 
             senderId: 'agent',
           }),
         ),
@@ -435,7 +484,7 @@ export class AppService implements OnModuleInit {
       return { success: true, message: 'Reply sent successfully' };
     } catch (error) {
       console.error('Reply to Customer Error:', error);
-      return { success: false, message: 'Failed to reply to customer' };
+      return { success: false, message: `Failed ${error}` };
     }
   }
 

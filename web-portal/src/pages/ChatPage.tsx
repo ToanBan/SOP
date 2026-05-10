@@ -34,7 +34,7 @@ interface Message {
   senderType: "customer" | "admin";
   createdAt: string;
   customerName: string;
-  mediaUrl?: string | null;
+  mediaUrls?: string[];
 }
 
 const PlatformBadge: React.FC<{ platform: PlatformType }> = ({ platform }) => {
@@ -152,7 +152,7 @@ const UpdateCustomerModal: React.FC<{
 }> = ({ isOpen, onClose, customer, onUpdate }) => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-
+  const [name, setName] = useState("");
   useEffect(() => {
     if (customer) {
       setEmail(customer.email || "");
@@ -164,7 +164,7 @@ const UpdateCustomerModal: React.FC<{
 
   const handleSubmitUpdate = async () => {
     try {
-      const result = await updateCustomer(customer.id, email, phone);
+      const result = await updateCustomer(customer.id, email, phone, name);
       if (result.success) {
         Swal.fire({
           icon: "success",
@@ -194,6 +194,13 @@ const UpdateCustomerModal: React.FC<{
         <div className="space-y-5">
           <input
             className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:border-indigo-300 transition-colors"
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <input
+            className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm outline-none focus:border-indigo-300 transition-colors"
             placeholder="Số điện thoại"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -203,6 +210,7 @@ const UpdateCustomerModal: React.FC<{
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            type="email"
           />
         </div>
         <div className="mt-8 flex gap-3">
@@ -238,8 +246,10 @@ const ChatPage: React.FC = () => {
     type: "customer" | "group";
   } | null>(null);
   const [messageInput, setMessageInput] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<
+    { url: string | null; file: File }[]
+  >([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
@@ -263,17 +273,13 @@ const ChatPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!selectedFile) {
-      setFilePreviewUrl(null);
-      return;
-    }
-    if (selectedFile.type.startsWith("image/")) {
-      const url = URL.createObjectURL(selectedFile);
-      setFilePreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
-    setFilePreviewUrl(null);
-  }, [selectedFile]);
+    const previews = selectedFiles.map((file) => ({
+      file,
+      url: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+    }));
+    setFilePreviews(previews);
+    return () => previews.forEach((p) => p.url && URL.revokeObjectURL(p.url));
+  }, [selectedFiles]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -330,34 +336,33 @@ const ChatPage: React.FC = () => {
   }, [conversationId]);
 
   const handleSendMessage = async () => {
-    if (!conversationId || (!messageInput.trim() && !selectedFile)) return;
+    if (!conversationId || (!messageInput.trim() && !selectedFiles.length))
+      return;
     const channelId =
       selectedCustomer?.channelAccountId ||
       selectedGroup?.channelAccountId ||
       "";
-
     const currentMessage = messageInput;
-    const currentFile = selectedFile;
+    const currentFiles = selectedFiles;
 
     setMessageInput("");
-    setSelectedFile(null);
+    setSelectedFiles([]);
 
     try {
       const res = await replyCustomer(
         conversationId,
         currentMessage,
         channelId,
-        currentFile,
+        currentFiles,
       );
-
       if (!res.success) {
         setMessageInput(currentMessage);
-        setSelectedFile(currentFile);
+        setSelectedFiles(currentFiles);
         Swal.fire("Lỗi", "Không thể gửi tin nhắn", "error");
       }
     } catch (error) {
       setMessageInput(currentMessage);
-      setSelectedFile(currentFile);
+      setSelectedFiles(currentFiles);
       console.error(error);
     }
   };
@@ -518,15 +523,19 @@ const ChatPage: React.FC = () => {
                             : "bg-white text-slate-700 rounded-tl-none border border-slate-100 shadow-sm"
                         }`}
                       >
-                        {/* Media */}
-                        {msg.mediaUrl && (
-                          <MediaMessage
-                            mediaUrl={msg.mediaUrl}
-                            isAdmin={msg.senderType === "admin"}
-                          />
+                        {/* Media - loop qua mediaUrls */}
+                        {msg.mediaUrls && msg.mediaUrls.length > 0 && (
+                          <div className="flex flex-col gap-1">
+                            {msg.mediaUrls.map((url, index) => (
+                              <MediaMessage
+                                key={index}
+                                mediaUrl={url}
+                                isAdmin={msg.senderType === "admin"}
+                              />
+                            ))}
+                          </div>
                         )}
 
-                        {/* Text content */}
                         {msg.content && (
                           <div className="px-4 py-3">{msg.content}</div>
                         )}
@@ -540,40 +549,46 @@ const ChatPage: React.FC = () => {
 
             {/* Footer */}
             <footer className="p-4 bg-white border-t border-slate-100 shrink-0">
-              {/* File preview */}
-              {selectedFile && (
-                <div className="mb-3 flex items-center gap-3 bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-2.5">
-                  {/* Ảnh preview nếu là image */}
-                  {filePreviewUrl ? (
-                    <img
-                      src={filePreviewUrl}
-                      alt="preview"
-                      className="w-12 h-12 rounded-xl object-cover border-2 border-indigo-200 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-                      <span className="text-white text-lg">📎</span>
+              {/* File previews - đặt NGOÀI form, TRÊN form */}
+              {selectedFiles.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {filePreviews.map((p, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-2xl px-3 py-2"
+                    >
+                      {p.url ? (
+                        <img
+                          src={p.url}
+                          className="w-10 h-10 rounded-xl object-cover border-2 border-indigo-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                          <span className="text-white text-lg">📎</span>
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-indigo-700 truncate max-w-[120px]">
+                          {p.file.name}
+                        </p>
+                        <p className="text-[10px] text-indigo-400">
+                          {p.file.size < 1024 * 1024
+                            ? `${(p.file.size / 1024).toFixed(1)} KB`
+                            : `${(p.file.size / 1024 / 1024).toFixed(1)} MB`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setSelectedFiles((prev) =>
+                            prev.filter((_, idx) => idx !== i),
+                          )
+                        }
+                        className="w-6 h-6 bg-indigo-200 hover:bg-indigo-300 rounded-full flex items-center justify-center text-indigo-700 font-black text-sm shrink-0"
+                      >
+                        ×
+                      </button>
                     </div>
-                  )}
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-indigo-700 truncate">
-                      {selectedFile.name}
-                    </p>
-                    <p className="text-[10px] text-indigo-400 mt-0.5">
-                      {selectedFile.type || "File"} ·{" "}
-                      {selectedFile.size < 1024 * 1024
-                        ? `${(selectedFile.size / 1024).toFixed(1)} KB`
-                        : `${(selectedFile.size / 1024 / 1024).toFixed(1)} MB`}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => setSelectedFile(null)}
-                    className="w-7 h-7 bg-indigo-200 hover:bg-indigo-300 rounded-full flex items-center justify-center text-indigo-700 font-black text-sm transition-colors shrink-0"
-                  >
-                    ×
-                  </button>
+                  ))}
                 </div>
               )}
 
@@ -590,14 +605,15 @@ const ChatPage: React.FC = () => {
                     type="file"
                     id="file-upload"
                     className="hidden"
+                    multiple
                     onChange={(e) =>
-                      setSelectedFile(e.target.files?.[0] || null)
+                      setSelectedFiles(Array.from(e.target.files || []))
                     }
                   />
                   <label
                     htmlFor="file-upload"
                     className={`p-2.5 rounded-xl cursor-pointer transition-colors ${
-                      selectedFile
+                      selectedFiles.length > 0
                         ? "text-indigo-600 bg-indigo-50"
                         : "text-slate-400 hover:text-indigo-600"
                     }`}

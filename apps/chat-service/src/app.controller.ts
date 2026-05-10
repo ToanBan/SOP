@@ -7,6 +7,7 @@ import {
   Post,
   Put,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -15,7 +16,7 @@ import { MessageRequestDTO } from './dto/MessageRequestDTO';
 import { UpdateCustomerDTO } from './dto/UpdateCustomer';
 import { ReplyMessageDTO } from './dto/ReplayMessageDTO';
 import { CheckRole, ROLES, DecodeAuthGuard } from '@repo/auth';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { REDIS_PROVIDER } from './redis/redis.provider';
 import { CheckBlackList } from './guards/checkblacklist.guard';
 
@@ -60,21 +61,26 @@ export class AppController {
     @Body() dto: UpdateCustomerDTO,
     @Param('customerId') customerId: string,
   ) {
-    return this.appService.updateCustomer(customerId, dto.email, dto.phone);
+    return this.appService.updateCustomer(
+      customerId,
+      dto.email,
+      dto.phone,
+      dto.name,
+    );
   }
 
   @Post('reply')
   @ROLES('sales', 'admin')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FilesInterceptor('files', 10))
   async replyToCustomer(
     @Body() dto: ReplyMessageDTO,
-    @UploadedFile() file?: any,
+    @UploadedFiles() files?: any[],
   ) {
     return this.appService.replyToCustomer(
       dto.conversationId,
       dto.message,
       dto.channelAccountId,
-      file || null,
+      files || [],
     );
   }
 

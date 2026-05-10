@@ -26,6 +26,7 @@ interface DistributionProps {
   externalConversationId: string;
   conversationType: string;
   platform: string;
+  name:string
 }
 
 const getPlatformIcon = (platform: string) => {
@@ -73,7 +74,7 @@ const DistributionCard: React.FC<{
             isSelected ? "text-indigo-900" : "text-slate-700"
           }`}
         >
-          {item.title || "Kênh không tên"}
+          {item.name || "Kênh không tên"}
         </h4>
 
         {/* Thông tin chi tiết: Platform | ID Phòng */}
