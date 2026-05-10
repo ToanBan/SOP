@@ -22,8 +22,8 @@ export class AppController {
 
   @Get()
   @ROLES('marketing', 'admin')
-  async getAllConversations() {
-    return this.appService.getAllConversations();
+  async getAllChannelAccount() {
+    return this.appService.getAllChannelAccount()
   }
 
   @Post('create')

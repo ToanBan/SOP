@@ -76,7 +76,7 @@ export class AppService {
       });
     } catch (error) {
       console.error('Registration error:', error);
-      return { success: false, message: 'Registration failed' };
+      return { success: false, message: `Registration failed ${error}` };
     }
   }
 
@@ -98,13 +98,13 @@ export class AppService {
       const user = results[0];
 
       if (!user) {
-        throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+        throw new UnauthorizedException('Email or Password invalid');
       }
 
       const isValid = await bcrypt.compare(dto.password, user.password);
 
       if (!isValid) {
-        throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+        throw new UnauthorizedException('Email or Password invalid');
       }
       const rolesList = results.map((r) => r.roleName);
       const sessionId = crypto.randomUUID();
@@ -150,7 +150,7 @@ export class AppService {
       };
     } catch (error) {
       console.error('Login error:', error);
-      return { success: false, message: 'Login failed' };
+      return { success: false, message: `Login failed ${error}` };
     }
   }
 
@@ -172,20 +172,20 @@ export class AppService {
         .limit(1);
 
       if (!session) {
-        throw new UnauthorizedException('Session không tồn tại');
+        throw new UnauthorizedException('Session not existed');
       }
 
       if (session.isRevoked) {
-        throw new UnauthorizedException('Session đã bị thu hồi');
+        throw new UnauthorizedException('Session is revoked');
       }
 
       if (new Date(session.expiresAt) < new Date()) {
-        throw new UnauthorizedException('Session đã hết hạn');
+        throw new UnauthorizedException('Session is expired');
       }
 
       const isValid = await bcrypt.compare(token, session.hashedRefreshToken);
       if (!isValid) {
-        throw new UnauthorizedException('Refresh token không hợp lệ');
+        throw new UnauthorizedException('Refresh token invalid');
       }
 
       const roleRows = await this.db
@@ -218,9 +218,7 @@ export class AppService {
       };
     } catch (error) {
       console.error('Refresh token error:', error);
-      throw new UnauthorizedException(
-        'Refresh token không hợp lệ hoặc đã hết hạn',
-      );
+      return {success:false, message:`Failed ${error}`}
     }
   }
 
@@ -248,7 +246,7 @@ export class AppService {
 
       return { user };
     } catch (error) {
-      return { success: false, message: 'Could not fetch user info' };
+      return { success: false, message: `Failed ${error}` };
     }
   }
 
@@ -298,7 +296,7 @@ export class AppService {
 
       return { message: 'Logout success' };
     } catch (error) {
-      throw new UnauthorizedException('Token không hợp lệ');
+      return {success:false, message : `failed ${error}`}
     }
   }
 

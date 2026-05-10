@@ -7,7 +7,7 @@ import {
   campaignTargets,
   campaignMedias,
 } from '@repo/db';
-import { eq, inArray} from '@repo/db';
+import { eq, inArray } from '@repo/db';
 import { v4 as uuidv4 } from 'uuid';
 import { QUEUE_PROVIDER } from './queue/queue.provider';
 import { REDIS_PROVIDER } from './redis/redis.provider';
@@ -19,10 +19,9 @@ export class AppService {
     @Inject(REDIS_PROVIDER) private readonly redis: any,
   ) {}
 
-  async getAllConversations() {
+  async getAllChannelAccount() {
     const cacheKey = 'conversations:all';
     try {
-
       const cached = await this.redis.get(cacheKey);
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
@@ -41,6 +40,7 @@ export class AppService {
           updatedAt: conversations.updatedAt,
           platform: channelAccounts.platform,
           externalId: channelAccounts.externalId,
+          name:channelAccounts.name
         })
         .from(conversations)
         .innerJoin(
@@ -64,6 +64,18 @@ export class AppService {
     files?: any[],
   ) {
     try {
+      if (scheduledAt) {
+        const scheduled = new Date(scheduledAt);
+        const now = new Date();
+  
+        if (scheduled <= now) {
+          return {
+            success: false,
+            message: 'scheduledAt must be greater than current time',
+          };
+        }
+      }
+
       let mediaUrls: [] = [];
 
       if (files && files.length > 0) {
@@ -76,9 +88,11 @@ export class AppService {
         const result = await fetch(`http://localhost:8000/media/upload`, {
           method: 'POST',
           body: formData,
+          headers: {
+            'x-internal-key': `your_internal_key_secret`,
+          },
         });
         const data = await result.json();
-        console.log(data);
         mediaUrls = data;
       }
 
@@ -90,7 +104,7 @@ export class AppService {
           scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
         });
 
-        if (mediaUrls) {
+        if (mediaUrls.length > 0) {
           await tx.insert(campaignMedias).values(
             mediaUrls.map((media, index) => ({
               id: uuidv4(),
@@ -113,7 +127,6 @@ export class AppService {
         }
       });
 
-
       await this.redis.del('campagins:all');
 
       const targetsWithInfo = await this.db
@@ -122,6 +135,7 @@ export class AppService {
           externalConversationId: conversations.externalConversationId,
           platform: channelAccounts.platform,
           botToken: channelAccounts.accessToken,
+          pageId: channelAccounts.externalId,
         })
         .from(conversations)
         .innerJoin(
@@ -131,13 +145,31 @@ export class AppService {
         .where(inArray(conversations.id, conversationIds));
 
       for (const target of targetsWithInfo) {
+        if (target.platform === 'facebook') {
+          this.queue.channel.publish(
+            'chat_exchange',
+            'message.campaign',
+            Buffer.from(
+              JSON.stringify({
+                platform: 'facebook',
+                type: 'feed',
+                pageId: target.pageId,
+                botToken: target.botToken,
+                message: content,
+                mediaUrls,
+              }),
+            ),
+            { persistent: true },
+          );
+
+          continue;
+        }
+
         const mediasToSend = mediaUrls.length > 0 ? mediaUrls : [null];
 
         for (let i = 0; i < mediasToSend.length; i++) {
           const mediaUrl = mediasToSend[i];
-
           const isLast = i === mediasToSend.length - 1;
-
           this.queue.channel.publish(
             'chat_exchange',
             'message.campaign',
@@ -162,10 +194,9 @@ export class AppService {
   }
 
   async getAllCampaign() {
-    const cacheKey = 'campagins:all'
+    const cacheKey = 'campagins:all';
     try {
-
-      const cached = await this.redis.get(cacheKey)
+      const cached = await this.redis.get(cacheKey);
       if (cached) {
         return { success: true, data: JSON.parse(cached) };
       }

@@ -265,10 +265,38 @@ const FacebookGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
 
+  // State mới để điều khiển việc hiển thị hướng dẫn hay ô nhập
+  const [showInput, setShowInput] = useState(false);
+
+  const steps = [
+    {
+      title: "Truy cập Facebook Developers",
+      desc: "Tạo một ứng dụng và truy cập Graph API Explorer để lấy User Access Token.",
+      action: (
+        <a
+          href="https://developers.facebook.com/tools/explorer/"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-[#0866FF] font-bold text-sm hover:underline mt-2"
+        >
+          Mở Graph API Explorer <ExternalLink size={14} />
+        </a>
+      ),
+    },
+    {
+      title: "Cấp quyền (Permissions)",
+      desc: "Đảm bảo bạn đã chọn các quyền: pages_messaging, pages_read_engagement, pages_manage_metadata.",
+    },
+    {
+      title: "Sao chép Token",
+      desc: "Nhấn 'Generate Token' và sao chép mã nhận được để dán vào bước tiếp theo.",
+    },
+  ];
+
   const handleGetPages = async () => {
     try {
       setLoading(true);
-     const result = await getFanpageFB(userToken)
+      const result = await getFanpageFB(userToken);
       if (result.success) {
         setPages(result.pages);
       } else {
@@ -285,9 +313,7 @@ const FacebookGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
     if (!selectedPage) {
       return Swal.fire("Chọn page", "Vui lòng chọn fanpage", "warning");
     }
-
     const result = await handleConnectionFB(userToken, selectedPage);
-
     if (result.success) {
       Swal.fire("Thành công", "Đã kết nối fanpage", "success");
       onClose();
@@ -296,58 +322,114 @@ const FacebookGuideModal: React.FC<ModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  // Reset trạng thái khi đóng modal
+  const handleClose = () => {
+    setShowInput(false);
+    setPages([]);
+    onClose();
+  };
+
   return (
     <BaseModal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Kết nối Facebook Messenger"
-      subtitle="Chọn fanpage bạn muốn quản lý"
+      subtitle={
+        showInput
+          ? "Nhập mã Token để lấy danh sách Fanpage"
+          : "Lấy mã kết nối từ Facebook Developers"
+      }
       icon={<FacebookIcon />}
       color="from-[#0866FF] to-[#0047AB]"
     >
-      <div className="space-y-4">
-        <input
-          type="text"
-          value={userToken}
-          onChange={(e) => setUserToken(e.target.value)}
-          placeholder="User Access Token..."
-          className="w-full px-6 py-4 rounded-2xl border-2 border-slate-200 focus:border-[#0866FF]"
-        />
-
-        <button
-          onClick={handleGetPages}
-          className="w-full bg-[#0866FF] text-white py-3 rounded-xl font-bold"
-        >
-          {loading ? "Đang tải..." : "Lấy danh sách fanpage"}
-        </button>
-      </div>
-
-      {pages.length > 0 && (
-        <div className="mt-6 space-y-3 max-h-60 overflow-y-auto">
-          {pages.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => setSelectedPage(p.id)}
-              className={`p-4 border rounded-xl cursor-pointer transition ${
-                selectedPage === p.id
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-slate-200"
-              }`}
-            >
-              <div className="font-bold">{p.name}</div>
-              <div className="text-xs text-gray-500">{p.id}</div>
-            </div>
+      {!showInput ? (
+        /* PHẦN 1: HƯỚNG DẪN */
+        <div className="space-y-8 relative">
+          <div className="absolute left-[27px] top-2 bottom-2 w-0.5 bg-slate-100" />
+          {steps.map((step, idx) => (
+            <StepItem
+              key={idx}
+              idx={idx}
+              step={step}
+              activeColor="group-hover:bg-[#0866FF]"
+            />
           ))}
-        </div>
-      )}
 
-      {pages.length > 0 && (
-        <button
-          onClick={handleConnect}
-          className="mt-6 w-full bg-green-600 text-white py-3 rounded-xl font-bold"
-        >
-          Kết nối fanpage đã chọn
-        </button>
+          <button
+            onClick={() => setShowInput(true)}
+            className="w-full mt-4 bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-[#0866FF] transition-all flex items-center justify-center gap-2 shadow-lg"
+          >
+            Tôi đã có Token <ArrowRight size={18} />
+          </button>
+        </div>
+      ) : (
+        /* PHẦN 2: NHẬP TOKEN & CHỌN PAGE */
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 mb-6">
+            <label className="block text-[13px] font-black uppercase tracking-wider text-slate-400 mb-3 ml-1">
+              User Access Token
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                value={userToken}
+                onChange={(e) => setUserToken(e.target.value)}
+                placeholder="EAA..."
+                className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-200 focus:border-[#0866FF] outline-none transition-all"
+              />
+              <button
+                onClick={handleGetPages}
+                disabled={loading || !userToken}
+                className="bg-[#0866FF] text-white px-6 py-4 rounded-2xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              >
+                {loading ? "..." : "Lấy danh sách"}
+              </button>
+            </div>
+          </div>
+
+          {pages.length > 0 && (
+            <div className="space-y-3">
+              <label className="block text-[13px] font-black uppercase tracking-wider text-slate-400 mb-1 ml-1">
+                Chọn Fanpage hiển thị ({pages.length})
+              </label>
+              <div className="max-h-60 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                {pages.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => setSelectedPage(p.id)}
+                    className={`p-4 border-2 rounded-2xl cursor-pointer transition-all flex justify-between items-center ${
+                      selectedPage === p.id
+                        ? "border-[#0866FF] bg-blue-50 ring-4 ring-blue-50"
+                        : "border-slate-100 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold text-slate-800">{p.name}</div>
+                      <div className="text-xs text-slate-400">ID: {p.id}</div>
+                    </div>
+                    {selectedPage === p.id && (
+                      <Check className="text-[#0866FF]" size={20} />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleConnect}
+                className="w-full mt-4 bg-emerald-500 text-white py-4 rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+              >
+                <Zap size={18} /> Hoàn tất kết nối
+              </button>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowInput(false)}
+            className="w-full mt-4 text-slate-400 text-sm font-bold hover:text-slate-600 transition-colors"
+          >
+            Quay lại hướng dẫn
+          </button>
+        </div>
       )}
     </BaseModal>
   );

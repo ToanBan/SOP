@@ -17,7 +17,7 @@ export const messages = mysqlTable("messages", {
 
   content: text("content"),
 
-  mediaUrl: varchar("media_url", { length: 255 }),
+  // mediaUrl: varchar("media_url", { length: 255 }),
 
   externalMessageId: varchar("external_message_id", { length: 100 }),
 

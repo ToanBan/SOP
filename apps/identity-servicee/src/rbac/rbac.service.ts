@@ -6,7 +6,7 @@ import {
   users,
   roles,
   userRoles,
-  eq
+  eq,
 } from '@repo/db';
 
 @Injectable()
@@ -45,66 +45,85 @@ export class RbacService {
   }
 
   async getAllPermissions() {
-    const permissionsDb = await this.db.select().from(permissions);
+    try {
+      const permissionsDb = await this.db.select().from(permissions);
 
-    if (!permissions) {
-      throw new Error('Không Tìm Thấy');
+      if (!permissions) {
+        throw new Error('Không Tìm Thấy');
+      }
+
+      return permissionsDb;
+    } catch (error) {
+      return { success: false, message: `Failed ${error}` };
     }
-
-    return permissionsDb;
   }
 
   async getUsers() {
-    const rows = await this.db
-      .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        roleName: roles.name,
-      })
-      .from(users)
-      .innerJoin(userRoles, eq(users.id, userRoles.userId))
-      .innerJoin(roles, eq(userRoles.roleId, roles.id));
+    try {
+      const rows = await this.db
+        .select({
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          roleName: roles.name,
+        })
+        .from(users)
+        .innerJoin(userRoles, eq(users.id, userRoles.userId))
+        .innerJoin(roles, eq(userRoles.roleId, roles.id));
 
-    const grouped = Object.values(
-      rows.reduce((acc, cur) => {
-        if (!acc[cur.id]) {
-          acc[cur.id] = {
-            id: cur.id,
-            username: cur.username,
-            email: cur.email,
-            roles: [],
-          };
-        }
+      const grouped = Object.values(
+        rows.reduce((acc, cur) => {
+          if (!acc[cur.id]) {
+            acc[cur.id] = {
+              id: cur.id,
+              username: cur.username,
+              email: cur.email,
+              roles: [],
+            };
+          }
 
-        acc[cur.id].roles.push(cur.roleName);
-        return acc;
-      }, {} as any),
-    );
+          acc[cur.id].roles.push(cur.roleName);
+          return acc;
+        }, {} as any),
+      );
 
-    return grouped;
+      return grouped;
+    } catch (error) {
+      return { success: false, message: `Failed ${error}` };
+    }
   }
 
   async getRoles() {
-    const rolesDb = await this.db.select().from(roles);
-    if (!rolesDb) {
-      throw new Error('Không Có Vai Trò');
-    }
+    try {
+      const rolesDb = await this.db.select().from(roles);
+      if (!rolesDb) {
+        throw new Error('Not found');
+      }
 
-    return rolesDb;
+      return rolesDb;
+    } catch (error) {
+      return { success: false, message: `Failed ${error}` };
+    }
   }
 
   async getPermissionsByRole(roleId: string) {
-    const rows = await this.db
-      .select({
-        permissionId: rolePermissions.permissionId,
-        permissionName: permissions.name,
-      })
-      .from(rolePermissions)
-      .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
-      .where(eq(rolePermissions.roleId, roleId));
+    try {
+      const rows = await this.db
+        .select({
+          permissionId: rolePermissions.permissionId,
+          permissionName: permissions.name,
+        })
+        .from(rolePermissions)
+        .innerJoin(
+          permissions,
+          eq(permissions.id, rolePermissions.permissionId),
+        )
+        .where(eq(rolePermissions.roleId, roleId));
 
-    return rows;
+      return rows;
+    } catch (error) {
+      return {success:false, message:`Failed ${error}`}
+    }
   }
 
   async assignRole(userId: string, RolesId: string[]) {
@@ -118,8 +137,6 @@ export class RbacService {
         throw new Error('User not found');
       }
 
-  
-
       await this.db.transaction(async (tx) => {
         await tx.delete(userRoles).where(eq(userRoles.userId, userId));
         if (RolesId.length > 0) {
@@ -131,11 +148,9 @@ export class RbacService {
         }
       });
       return { success: true, message: 'Assigned roles successfully' };
-
     } catch (error) {
       console.error(error);
-      return { success: false || 'Failed to assign roles' };
+      return { success: false, message:`Failed ${error}`};
     }
-      
   }
 }

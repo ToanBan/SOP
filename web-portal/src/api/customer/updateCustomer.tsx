@@ -1,8 +1,8 @@
 import api from "../../lib/axios"
 
-const updateCustomer = async(customerId:string, email?:string, phone?:string) => {
+const updateCustomer = async(customerId:string, email?:string, phone?:string, name?:string) => {
     try {
-        const res = await api.put(`/chat/customer/${customerId}`, { email, phone })
+        const res = await api.put(`/chat/customer/${customerId}`, { email, phone, name})
         return { success: true, data: res.data }
     } catch (error) {
         console.error("Error updating customer:", error)

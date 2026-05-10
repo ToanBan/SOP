@@ -26,112 +26,188 @@ export class AppService implements OnModuleInit {
   }
 
   async handleSendTelegram(data: any) {
-    const { botToken, chatId, message, mediaUrl } = data;
-    console.log('nhắn lại từ telegram');
-    if (mediaUrl) {
-      const { blob, fileName, contentType } = await this.downloadFile(mediaUrl);
+    try {
+      const { botToken, chatId, message, mediaUrls } = data;
 
-      const formData = new FormData();
-      formData.append('chat_id', String(chatId));
-      formData.append('caption', message || '');
+      if (mediaUrls?.length) {
+        for (const mediaUrl of mediaUrls) {
+          const { blob, fileName, contentType } =
+            await this.downloadFile(mediaUrl);
+          const formData = new FormData();
+          formData.append('chat_id', String(chatId));
+          formData.append('caption', message || '');
 
-      const isImage = contentType.startsWith('image/');
-      if (isImage) {
-        formData.append('photo', blob, fileName);
-        await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-          method: 'POST',
-          body: formData,
-        });
+          const isImage = contentType?.startsWith('image/');
+          if (isImage) {
+            formData.append('photo', blob, fileName);
+            await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+              method: 'POST',
+              body: formData,
+            });
+          } else {
+            formData.append('document', blob, fileName);
+            await fetch(
+              `https://api.telegram.org/bot${botToken}/sendDocument`,
+              {
+                method: 'POST',
+                body: formData,
+              },
+            );
+          }
+        }
       } else {
-        formData.append('document', blob, fileName);
-        await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: message }),
         });
       }
-    } else {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: message }),
-      });
+    } catch (error) {
+      return { success: false, message: `Failed ${error}` };
     }
   }
 
   async handleSendDiscord(data: any) {
-    const { botToken, chatId, message, mediaUrl } = data;
-    const url = `https://discord.com/api/v10/channels/${chatId}/messages`;
+    try {
+      const { botToken, chatId, message, mediaUrls } = data;
+      const url = `https://discord.com/api/v10/channels/${chatId}/messages`;
 
-    if (mediaUrl) {
-      const { blob, fileName } = await this.downloadFile(mediaUrl);
+      if (mediaUrls?.length) {
+        const formData = new FormData();
+        formData.append(
+          'payload_json',
+          JSON.stringify({ content: message || '' }),
+        );
 
-      const formData = new FormData();
-      formData.append(
-        'payload_json',
-        JSON.stringify({ content: message || '' }),
-      );
-      formData.append('files[0]', blob, fileName);
+        for (let i = 0; i < mediaUrls.length; i++) {
+          const { blob, fileName } = await this.downloadFile(mediaUrls[i]);
+          formData.append(`files[${i}]`, blob, fileName);
+        }
 
-      const result = await fetch(url, {
-        method: 'POST',
-        headers: { Authorization: `Bot ${botToken}` },
-        body: formData,
-      });
-      console.log(await result.json());
-    } else {
-      const result = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bot ${botToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content: message }),
-      });
-      console.log(await result.json());
+        const result = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bot ${botToken}` },
+          body: formData,
+        });
+        console.log(await result.json());
+      } else {
+        const result = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bot ${botToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ content: message }),
+        });
+        console.log(await result.json());
+      }
+    } catch (error) {
+      return { success: false, message: `Failed ${error}` };
     }
   }
 
   async handleSendFacebook(data: any) {
-    const { botToken, chatId, message, mediaUrl } = data;
-    const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${botToken}`;
-    console.log('nhắn lại từ facebook');
+    try {
+      const { botToken, chatId, message, mediaUrls } = data;
+      const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${botToken}`;
+      console.log('nhắn lại từ facebook');
 
-    if (mediaUrl) {
-      const { blob, fileName, contentType } = await this.downloadFile(mediaUrl);
+      if (mediaUrls?.length) {
+        for (const mediaUrl of mediaUrls) {
+          const { blob, fileName, contentType } =
+            await this.downloadFile(mediaUrl);
+          const formData = new FormData();
+          formData.append('recipient', JSON.stringify({ id: chatId }));
 
-      const formData = new FormData();
-      formData.append('recipient', JSON.stringify({ id: chatId }));
+          const isImage = contentType.startsWith('image/');
+          formData.append(
+            'message',
+            JSON.stringify({
+              attachment: {
+                type: isImage ? 'image' : 'file',
+                payload: { is_reusable: true },
+              },
+            }),
+          );
+          formData.append('filedata', blob, fileName);
 
-      const isImage = contentType.startsWith('image/');
-      formData.append(
-        'message',
-        JSON.stringify({
-          attachment: {
-            type: isImage ? 'image' : 'file',
-            payload: { is_reusable: true },
+          const res = await fetch(url, { method: 'POST', body: formData });
+          console.log(await res.json());
+        }
+      } else {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient: { id: chatId },
+            message: { text: message },
+          }),
+        });
+        console.log(await res.json());
+      }
+    } catch (error) {
+      return { success: false, message: `Failed ${error}` };
+    }
+  }
+
+  async handleFacebookFeed(payload: any) {
+    try {
+      const { pageId, botToken, message, mediaUrls } = payload;
+
+      if (!mediaUrls || mediaUrls.length === 0) {
+        const response = await fetch(
+          `https://graph.facebook.com/v19.0/${pageId}/feed`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message,
+              access_token: botToken,
+            }),
           },
-        }),
-      );
-      formData.append('filedata', blob, fileName);
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(JSON.stringify(data));
+        console.log('Facebook feed created:', data);
+        return;
+      }
 
-      const res = await fetch(url, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      console.log(data);
-    } else {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipient: { id: chatId },
-          message: { text: message },
-        }),
-      });
+      for (const mediaUrl of mediaUrls) {
+        const { blob, fileName, contentType } =
+          await this.downloadFile(mediaUrl);
+        const isImage = contentType.startsWith('image/');
+        const isVideo = contentType.startsWith('video/');
 
-      const data = await res.json();
-      console.log(data);
+        if (isImage) {
+          const formData = new FormData();
+          formData.append('source', blob, fileName);
+          formData.append('caption', message);
+          formData.append('access_token', botToken);
+
+          const response = await fetch(
+            `https://graph.facebook.com/v19.0/${pageId}/photos`,
+            { method: 'POST', body: formData },
+          );
+          const data = await response.json();
+          if (!response.ok) throw new Error(JSON.stringify(data));
+          console.log('Facebook photo posted:', data);
+        } else if (isVideo) {
+          const formData = new FormData();
+          formData.append('source', blob, fileName);
+          formData.append('description', message);
+          formData.append('access_token', botToken);
+
+          const response = await fetch(
+            `https://graph.facebook.com/v19.0/${pageId}/videos`,
+            { method: 'POST', body: formData },
+          );
+          const data = await response.json();
+          if (!response.ok) throw new Error(JSON.stringify(data));
+          console.log('Facebook video posted:', data);
+        }
+      }
+    } catch (error) {
+      return { success: false, message: `Failed ${error}` };
     }
   }
 
@@ -157,7 +233,13 @@ export class AppService implements OnModuleInit {
         } else if (payload.platform === 'discord') {
           await this.handleSendDiscord(payload);
         } else if (payload.platform === 'facebook') {
-          await this.handleSendFacebook(payload);
+          if (payload.type === 'feed') {
+            console.log('check tại đây');
+
+            await this.handleFacebookFeed(payload);
+          } else {
+            await this.handleSendFacebook(payload);
+          }
         }
 
         channel.ack(msg);
@@ -178,8 +260,6 @@ export class AppService implements OnModuleInit {
         timestamp: new Date().toISOString(),
       };
 
-      console.log("djadjksald", routingKey);
-
       this.queue.channel.publish(
         exchange,
         routingKey,
@@ -193,7 +273,7 @@ export class AppService implements OnModuleInit {
       console.error('Error pushing message to queue:', error);
       return {
         success: false,
-        error: 'Failed to push message to queue',
+        error: `Failed to push message to queue ${error}`,
       };
     }
   }

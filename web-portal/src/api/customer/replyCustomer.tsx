@@ -4,14 +4,14 @@ const replyCustomer = async (
   conversationId: string,
   message: string,
   channelAccountId: string,
-  file: File | null,
+  files: File[],
 ) => {
   try {
     const formData = new FormData();
     formData.append("conversationId", conversationId);
     formData.append("message", message);
     formData.append("channelAccountId", channelAccountId);
-    if (file) formData.append("file", file);
+    files.forEach((file) => formData.append("files", file));
     const res = await api.post("/chat/reply", formData);
     return res.data;
   } catch (error) {
