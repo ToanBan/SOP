@@ -20,31 +20,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleConnection(client: Socket) {
     try {
       const token = client.handshake.auth?.token;
-      console.log(`[Replica PORT:${process.env.PORT}] Client connected: ${client.id}`);
-      if (!token) {
-        throw new UnauthorizedException('No token');
-      }
+      if (!token) throw new UnauthorizedException('No token');
 
       const res = await fetch(`${process.env.BE_URL}/auth/verify`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       });
 
-      if (!res.ok) {
-        throw new UnauthorizedException('Invalid token');
-      }
+      if (!res.ok) throw new UnauthorizedException('Invalid token');
 
       const user = await res.json();
       client.data.user = user;
 
+      const sockets = await this.server.fetchSockets();
+      for (const existingSocket of sockets) {
+        if (
+          existingSocket.data.user?.sub === user.sub && 
+          existingSocket.id !== client.id 
+        ) {
+          console.log(`[Gateway] Kicking old socket: ${existingSocket.id}`);
+          existingSocket.disconnect();
+        }
+      }
+
       console.log(
-        `[Gateway] Client connected: ${client.id} on PORT ${process.env.PORT}`,
+        `Gateway Client connected: ${client.id} on PORT ${process.env.PORT}`,
       );
     } catch (err) {
-      console.error('[Gateway] Socket auth error:', err);
+      console.error('Gateway Socket auth error:', err);
       client.disconnect();
     }
   }
