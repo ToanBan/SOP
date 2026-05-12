@@ -1,27 +1,32 @@
 import { io, Socket } from "socket.io-client";
 import { getAccessToken } from "../context/tokenStore";
 
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL || "http://localhost:4000";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:4000";
 
-declare global {
-  interface Window {
-    __socket: Socket | null;
-  }
-}
+let socket: Socket | null = null;
 
-export function initSocket() {
-  if (window.__socket) return window.__socket;
+export function getSocket(): Socket {
+  if (socket) return socket;
 
-  const socket = io(SOCKET_URL, {
+  socket = io(SOCKET_URL, {
     transports: ["websocket"],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
     auth: (cb) => cb({ token: getAccessToken() }),
   });
 
   socket.on("connect", () => {
-    console.log("Socket connected:", socket.id);
+    console.log("[Socket] Connected:", socket?.id);
   });
 
-  window.__socket = socket;
+  socket.on("disconnect", (reason) => {
+    console.log("[Socket] Disconnected:", reason);
+  });
+
+  socket.on("connect_error", (err) => {
+    console.error("[Socket] Error:", err);
+  });
+
   return socket;
 }

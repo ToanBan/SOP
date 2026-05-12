@@ -8,7 +8,7 @@ import getMessagesByConversation from "../api/customer/getMessagesByConversation
 import getGroups from "../api/customer/getGroups";
 import { useSocket } from "../hooks/useSocket";
 export type PlatformType = "telegram" | "messenger" | "zalo" | string;
-
+import { getSocket } from "../hooks/initSocket";
 interface Customer {
   id: string;
   name: string;
@@ -370,6 +370,10 @@ const ChatPage: React.FC = () => {
   const filteredCustomers = customers.filter((c) =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  useEffect(() => {
+    getSocket();
+  }, []);
 
   useSocket(conversationId || null, (newMessage) => {
     console.log("new message", newMessage);

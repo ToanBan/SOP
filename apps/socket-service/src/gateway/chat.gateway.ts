@@ -31,18 +31,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (!res.ok) throw new UnauthorizedException('Invalid token');
 
       const user = await res.json();
-      client.data.user = user;
 
-      const sockets = await this.server.fetchSockets();
-      for (const existingSocket of sockets) {
-        if (
-          existingSocket.data.user?.sub === user.sub && 
-          existingSocket.id !== client.id 
-        ) {
-          console.log(`[Gateway] Kicking old socket: ${existingSocket.id}`);
-          existingSocket.disconnect();
-        }
-      }
+      console.log(user);
+      client.data.user = user;
+      await client.join(`user:${user.sub}`);
 
       console.log(
         `Gateway Client connected: ${client.id} on PORT ${process.env.PORT}`,
@@ -53,15 +45,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  @SubscribeMessage('join_conversation')
-  handleJoinConversation(client: Socket, conversationId: string) {
-    client.join(`conversation:${conversationId}`);
-  }
+  // @SubscribeMessage('join_conversation')
+  // handleJoinConversation(client: Socket, conversationId: string) {
+  //   client.join(`conversation:${conversationId}`);
+  //   console.log(`${client.id} đã tham gia`)
+  // }
 
-  @SubscribeMessage('leave_conversation')
-  handleLeaveConversation(client: Socket, conversationId: string) {
-    client.leave(`conversation:${conversationId}`);
-  }
+  // @SubscribeMessage('leave_conversation')
+  // handleLeaveConversation(client: Socket, conversationId: string) {
+  //   client.leave(`conversation:${conversationId}`);
+  // }
 
   handleDisconnect(client: Socket) {
     console.log(`[Gateway] Client disconnected: ${client.id}`);

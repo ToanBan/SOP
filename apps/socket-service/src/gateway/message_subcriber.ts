@@ -14,18 +14,19 @@ export class MessageSubscriberService implements OnModuleInit {
     const subClient = createClient({ url: process.env.REDIS_URL });
     await subClient.connect();
 
+
     await subClient.subscribe('new_message', async (raw) => {
-      const { conversationId, message } = JSON.parse(raw);
+      const { conversationId, message, participantIds } = JSON.parse(raw);
 
-      const socketsInRoom = await this.gateway.server
-        .in(`conversation:${conversationId}`)
-        .local
-        .fetchSockets();
+      console.log({
+        conversationId, message, participantIds
+      })
 
-      if (socketsInRoom.length > 0) {
-        this.gateway.server
-          .to(`conversation:${conversationId}`)
-          .emit('new_message', message);
+      for (const userId of participantIds) {
+        this.gateway.server.local.to(`user:${userId}`).emit('new_message', {
+          ...message,
+          conversationId,
+        });
       }
     });
 
