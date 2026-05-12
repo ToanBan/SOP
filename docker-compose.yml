@@ -111,7 +111,7 @@ services:
     networks:
       - sop-network
 
-  socket-service:
+  socket-service-1:
     image: node:20-alpine
     restart: always
     working_dir: /app
@@ -120,11 +120,49 @@ services:
       - sop-socket-modules:/app/node_modules
     command: sh -c "node dist/main.js"
     environment:
-      - PORT=4000
+      - PORT=4001
       - REDIS_URL=redis://redis:6379
       - BE_URL=http://kong:8000
-      - REDIS_HOST=redis   
-      - REDIS_PORT=6379 
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - sop-network
+
+  socket-service-2:
+    image: node:20-alpine
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./apps/socket-service:/app
+      - sop-socket-modules:/app/node_modules
+    command: sh -c "node dist/main.js"
+    environment:
+      - PORT=4002
+      - REDIS_URL=redis://redis:6379
+      - BE_URL=http://kong:8000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - sop-network
+
+  socket-service-3:
+    image: node:20-alpine
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./apps/socket-service:/app
+      - sop-socket-modules:/app/node_modules
+    command: sh -c "node dist/main.js"
+    environment:
+      - PORT=4003
+      - REDIS_URL=redis://redis:6379
+      - BE_URL=http://kong:8000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       - redis
     networks:
@@ -134,11 +172,13 @@ services:
     image: nginx:alpine
     restart: always
     ports:
-      - "4000:80" 
+      - "4000:80"
     volumes:
       - ./nginx.socket.conf:/etc/nginx/nginx.conf
     depends_on:
-      - socket-service
+      - socket-service-1
+      - socket-service-2
+      - socket-service-3
     networks:
       - sop-network
 
@@ -165,8 +205,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin123
     ports:
-      - "9000:9000" # API endpoint
-      - "9001:9001" # Console UI
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio_data:/data
     networks:
@@ -176,6 +216,7 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+
 networks:
   sop-network:
     driver: bridge

@@ -20,44 +20,41 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleConnection(client: Socket) {
     try {
       const token = client.handshake.auth?.token;
-      console.log(`[Replica PORT:${process.env.PORT}] Client connected: ${client.id}`);
-      if (!token) {
-        throw new UnauthorizedException('No token');
-      }
+      if (!token) throw new UnauthorizedException('No token');
 
       const res = await fetch(`${process.env.BE_URL}/auth/verify`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       });
 
-      if (!res.ok) {
-        throw new UnauthorizedException('Invalid token');
-      }
+      if (!res.ok) throw new UnauthorizedException('Invalid token');
 
       const user = await res.json();
+
+      console.log(user);
       client.data.user = user;
+      await client.join(`user:${user.sub}`);
 
       console.log(
-        `[Gateway] Client connected: ${client.id} on PORT ${process.env.PORT}`,
+        `Gateway Client connected: ${client.id} on PORT ${process.env.PORT}`,
       );
     } catch (err) {
-      console.error('[Gateway] Socket auth error:', err);
+      console.error('Gateway Socket auth error:', err);
       client.disconnect();
     }
   }
 
-  @SubscribeMessage('join_conversation')
-  handleJoinConversation(client: Socket, conversationId: string) {
-    client.join(`conversation:${conversationId}`);
-  }
+  // @SubscribeMessage('join_conversation')
+  // handleJoinConversation(client: Socket, conversationId: string) {
+  //   client.join(`conversation:${conversationId}`);
+  //   console.log(`${client.id} đã tham gia`)
+  // }
 
-  @SubscribeMessage('leave_conversation')
-  handleLeaveConversation(client: Socket, conversationId: string) {
-    client.leave(`conversation:${conversationId}`);
-  }
+  // @SubscribeMessage('leave_conversation')
+  // handleLeaveConversation(client: Socket, conversationId: string) {
+  //   client.leave(`conversation:${conversationId}`);
+  // }
 
   handleDisconnect(client: Socket) {
     console.log(`[Gateway] Client disconnected: ${client.id}`);

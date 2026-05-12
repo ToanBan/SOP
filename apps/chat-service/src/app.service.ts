@@ -14,6 +14,9 @@ import {
   asc,
   messageAttachments,
   inArray,
+  users,
+  userRoles,
+  roles,
 } from '@repo/db';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -159,6 +162,34 @@ export class AppService implements OnModuleInit {
             );
           }
 
+          const CACHE_KEY = 'agents:admin_sales';
+          const cached = await this.redis.get(CACHE_KEY);
+          let participantIds: string[];
+
+          if (cached) {
+            participantIds = JSON.parse(cached);
+          } else {
+            const agentResults = await tx
+              .select({ id: users.id })
+              .from(users)
+              .innerJoin(userRoles, eq(userRoles.userId, users.id))
+              .innerJoin(roles, eq(roles.id, userRoles.roleId))
+              .where(
+                and(
+                  eq(users.isActive, true),
+                  inArray(roles.name, ['admin', 'sales']),
+                ),
+              );
+
+            participantIds = agentResults.map((u) => u.id);
+            await this.redis.set(
+              CACHE_KEY,
+              JSON.stringify(participantIds),
+              'EX',
+              300,
+            );
+          }
+
           await this.pub.publish(
             'new_message',
             JSON.stringify({
@@ -170,6 +201,7 @@ export class AppService implements OnModuleInit {
                 senderType: 'customer',
                 createdAt: new Date(),
               },
+              participantIds,
             }),
           );
 
@@ -294,7 +326,7 @@ export class AppService implements OnModuleInit {
 
       return { success: true, data: result[0] || null };
     } catch (error) {
-      return { success: false, message: `Failed ${error}`  };
+      return { success: false, message: `Failed ${error}` };
     }
   }
 
@@ -406,7 +438,7 @@ export class AppService implements OnModuleInit {
         });
 
         console.log(process.env.INTERNAL_KEY);
-        console.log(process.env.BE_URL)
+        console.log(process.env.BE_URL);
 
         mediaUrls = await res.json();
         console.log(mediaUrls);
@@ -436,6 +468,35 @@ export class AppService implements OnModuleInit {
         );
       }
 
+      const CACHE_KEY = 'agents:admin_sales';
+      const cached = await this.redis.get(CACHE_KEY);
+      let participantIds: string[];
+
+      if (cached) {
+        participantIds = JSON.parse(cached);
+      } else {
+        const agentResults = await this.db
+          .select({ id: users.id })
+          .from(users)
+          .innerJoin(userRoles, eq(userRoles.userId, users.id))
+          .innerJoin(roles, eq(roles.id, userRoles.roleId))
+          .where(
+            and(
+              eq(users.isActive, true),
+              inArray(roles.name, ['admin', 'sales']),
+            ),
+          );
+
+        participantIds = agentResults.map((u) => u.id);
+        console.log('dhasdjsadkasd', participantIds);
+        await this.redis.set(
+          CACHE_KEY,
+          JSON.stringify(participantIds),
+          'EX',
+          300,
+        );
+      }
+
       await this.pub.publish(
         'new_message',
         JSON.stringify({
@@ -447,9 +508,9 @@ export class AppService implements OnModuleInit {
             senderType: 'agent',
             createdAt: new Date(),
           },
+          participantIds,
         }),
       );
-
       const conversation = await this.db
         .select()
         .from(conversations)
@@ -474,7 +535,7 @@ export class AppService implements OnModuleInit {
             message,
             botToken: channel[0].accessToken,
             platform: channel[0].platform,
-            mediaUrls, 
+            mediaUrls,
             senderId: 'agent',
           }),
         ),
