@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Inject,
+  Param,
   Post,
   UploadedFiles,
   UseGuards,
@@ -13,17 +14,16 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { CampaignDTO } from './dto/CampaignDTO';
 import { CheckRole, ROLES, DecodeAuthGuard } from '@repo/auth';
 import { CheckBlackList } from './guards/checkblacklist.guard';
-
-
+import { ReplyCommentDTO } from './dto/ReplyCommentDTO';
 @Controller('marketing')
-@UseGuards(DecodeAuthGuard, CheckBlackList, CheckRole) 
+@UseGuards(DecodeAuthGuard, CheckBlackList, CheckRole)
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
   @ROLES('marketing', 'admin')
   async getAllChannelAccount() {
-    return this.appService.getAllChannelAccount()
+    return this.appService.getAllChannelAccount();
   }
 
   @Post('create')
@@ -44,6 +44,21 @@ export class AppController {
     return this.appService.getAllCampaign();
   }
 
+  @Get('channelAccount/:id')
+  @ROLES('marketing', 'admin')
+  async getReactions(@Param('id') id: string) {
+    return this.appService.getReactionsPostFacebook(id);
+  }
+
+  @Get('channelAccount/comments/:id')
+  @ROLES('marketing', 'admin')
+  async getComments(@Param('id') id: string) {
+    return this.appService.getCommentsPostFacebook(id);
+  }
 
 
+  @Post("campaign/reply")
+  async replyComment(@Body() dto: ReplyCommentDTO){
+    return this.appService.replyCommentPostFacebook(dto.campaignId, dto.message, dto.commentId);
+  }
 }

@@ -223,7 +223,6 @@ const MarketingPage: React.FC = () => {
     item.title?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  console.log(distribution);
   return (
     <div className="min-h-screen bg-[#f8fafc] py-12 px-6 lg:px-8 font-sans">
       <div className="max-w-6xl mx-auto">

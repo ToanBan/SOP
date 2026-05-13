@@ -6,4 +6,6 @@ export const campaigns = mysqlTable("campaigns", {
   scheduledAt: timestamp("scheduled_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+  externalPostId: varchar("external_post_id", { length: 100 }),
+  channelAccountId: varchar("channel_account_id", { length: 36 }),
 });

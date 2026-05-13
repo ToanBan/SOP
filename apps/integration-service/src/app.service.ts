@@ -1,7 +1,13 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { DB_PROVIDER } from './db/db.provider';
 import { QUEUE_PROVIDER } from './queue/queue.provider';
-import { channelAccounts, messages, customers, users } from '@repo/db';
+import {
+  channelAccounts,
+  messages,
+  customers,
+  users,
+  campaigns,
+} from '@repo/db';
 import { count, desc, eq } from '@repo/db';
 import { REDIS_PROVIDER } from './redis/redis.provider';
 
@@ -152,7 +158,7 @@ export class AppService implements OnModuleInit {
 
   async handleFacebookFeed(payload: any) {
     try {
-      const { pageId, botToken, message, mediaUrls } = payload;
+      const { pageId, botToken, message, mediaUrls, campaignId, channelAccountId} = payload;
 
       if (!mediaUrls || mediaUrls.length === 0) {
         const response = await fetch(
@@ -169,6 +175,15 @@ export class AppService implements OnModuleInit {
         const data = await response.json();
         if (!response.ok) throw new Error(JSON.stringify(data));
         console.log('Facebook feed created:', data);
+        if (campaignId && data.id) {
+          await this.db
+            .update(campaigns)
+            .set({
+              externalPostId: data.id,
+              channelAccountId
+            })
+            .where(eq(campaigns.id, campaignId));
+        }
         return;
       }
 
@@ -190,7 +205,15 @@ export class AppService implements OnModuleInit {
           );
           const data = await response.json();
           if (!response.ok) throw new Error(JSON.stringify(data));
-          console.log('Facebook photo posted:', data);
+          if (campaignId && data.id) {
+            await this.db
+              .update(campaigns)
+              .set({
+                externalPostId: data.post_id,
+                channelAccountId
+              })
+              .where(eq(campaigns.id, campaignId));
+          }
         } else if (isVideo) {
           const formData = new FormData();
           formData.append('source', blob, fileName);
@@ -203,7 +226,15 @@ export class AppService implements OnModuleInit {
           );
           const data = await response.json();
           if (!response.ok) throw new Error(JSON.stringify(data));
-          console.log('Facebook video posted:', data);
+          if (campaignId && data.id) {
+            await this.db
+              .update(campaigns)
+              .set({
+                externalPostId: data.post_id,
+                channelAccountId
+              })
+              .where(eq(campaigns.id, campaignId));
+          }
         }
       }
     } catch (error) {
@@ -274,6 +305,36 @@ export class AppService implements OnModuleInit {
       return {
         success: false,
         error: `Failed to push message to queue ${error}`,
+      };
+    }
+  }
+
+  async pushReactionToQueue(reaction: any) {
+    try {
+      const exchange = 'chat_exchange';
+      const routingKey = 'facebook.feed.reaction';
+
+      const payload = {
+        ...reaction,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.queue.channel.publish(
+        exchange,
+        routingKey,
+        Buffer.from(JSON.stringify(payload)),
+        { persistent: true },
+      );
+
+      console.log(
+        `Reaction published to queue with routing key: ${routingKey}`,
+      );
+      return { success: true };
+    } catch (error) {
+      console.error('Error pushing reaction to queue:', error);
+      return {
+        success: false,
+        error: `Failed to push reaction to queue ${error}`,
       };
     }
   }

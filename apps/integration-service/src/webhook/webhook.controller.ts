@@ -100,6 +100,25 @@ export class WebhookController {
     }
   }
 
+  @Get('facebook/comments')
+  verifyFeed(@Req() req: any) {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    console.log('FEED VERIFY HIT');
+
+    if (mode === 'subscribe' && token === '123456') {
+      return challenge;
+    }
+
+    return 'fail';
+  }
+
+  @Post('facebook/comments')
+  async handleFacebookFeedWebhook(@Body() body: any) {
+    console.log('feed webhook:', JSON.stringify(body, null, 2));
+  }
+
   @Get('facebook')
   verify(@Req() req: any) {
     const mode = req.query['hub.mode'];
@@ -146,6 +165,8 @@ export class WebhookController {
       if (!body.entry?.length) return 'EVENT_RECEIVED';
       const data = body.entry[0];
       const externalId = data.id;
+
+      console.log('body', body);
 
       const channelAccount = await this.db
         .select({
@@ -198,7 +219,30 @@ export class WebhookController {
 
       return 'EVENT_RECEIVED';
     } catch (error) {
-      return {success:false, message:`Failed ${error}`}
+      return { success: false, message: `Failed ${error}` };
     }
   }
+
+  @Get('comments/facebook')
+  verifycomment(@Req() req: any) {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    console.log('VERIFY HIT');
+
+    if (mode === 'subscribe' && token === 'letoanban2601') {
+      return challenge;
+    }
+
+    return 'fail';
+  }
+
+  @Post('comments/facebook')
+  async handleCommentWebhook(@Body() body: any) {
+    console.log(body);
+  }
+
+
+
 }
