@@ -4,7 +4,6 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  SubscribeMessage,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
@@ -45,16 +44,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  // @SubscribeMessage('join_conversation')
-  // handleJoinConversation(client: Socket, conversationId: string) {
-  //   client.join(`conversation:${conversationId}`);
-  //   console.log(`${client.id} đã tham gia`)
-  // }
-
-  // @SubscribeMessage('leave_conversation')
-  // handleLeaveConversation(client: Socket, conversationId: string) {
-  //   client.leave(`conversation:${conversationId}`);
-  // }
 
   handleDisconnect(client: Socket) {
     console.log(`[Gateway] Client disconnected: ${client.id}`);

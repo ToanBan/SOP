@@ -55,7 +55,6 @@ export class FacebookService {
 
       const pageAccessToken = page.access_token;
 
-      console.log(pageAccessToken);
 
       const existed = await this.db
         .select()
@@ -85,7 +84,7 @@ export class FacebookService {
           method: 'POST',
           body: new URLSearchParams({
             access_token: pageAccessToken,
-            subscribed_fields: 'messages,messaging_postbacks',
+            subscribed_fields: 'messages,messaging_postbacks, feed',
           }),
         },
       );
@@ -108,6 +107,15 @@ export class FacebookService {
     } catch (error) {
       console.error(error);
       return { success: false, message: `Failed ${error}` };
+    }
+  }
+
+  async getCommentFromFanPage(){
+    try {
+      
+    } catch (error) {
+      console.error(error);
+      return {success:false, message:`Failed ${error}`}
     }
   }
 }
