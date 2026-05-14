@@ -26,6 +26,7 @@ export const connectionQueue = async () => {
     await ch.assertExchange(exchangeFeedName, "topic", {
       durable: true,
     });
+
     connection = conn as any;
     channel = ch;
 
