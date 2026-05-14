@@ -16,5 +16,6 @@ export * from "./schemas/campaign_medias.schema"
 export * from "./schemas/campaign_targets.schema"
 export * from "./schemas/campaigns.schema"
 export * from "./schemas/message_attachments.schema"
-
+export * from "./schemas/notifications.schema"
+export * from "./schemas/notificationReads.schema"
 export { eq, and, or, desc, asc, like, sql, inArray, isNull, isNotNull, count} from "drizzle-orm";

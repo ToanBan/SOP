@@ -16,6 +16,7 @@ export class DecodeAuthGuard implements CanActivate {
     try {
       const payload = this.jwtService.decode(token);
       request.user = payload;
+      console.log("payload", payload);
       return true;
     } catch (e) {
       return false;

@@ -9,6 +9,7 @@ import getGroups from "../api/customer/getGroups";
 import { useSocket } from "../hooks/useSocket";
 export type PlatformType = "telegram" | "messenger" | "zalo" | string;
 import { getSocket } from "../hooks/initSocket";
+import { useSearchParams } from "react-router-dom";
 interface Customer {
   id: string;
   name: string;
@@ -251,7 +252,7 @@ const ChatPage: React.FC = () => {
     { url: string | null; file: File }[]
   >([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  const [searchParams] = useSearchParams();
   const fetchData = async () => {
     setLoadingCustomers(true);
     try {
@@ -334,6 +335,31 @@ const ChatPage: React.FC = () => {
     };
     fetchMessages();
   }, [conversationId]);
+
+  useEffect(() => {
+    const convId = searchParams.get("conversationId");
+    if (!convId) return;
+
+    setConversationId(convId);
+
+    // Tìm customer có conversation này sau khi customers đã load
+    const findCustomer = async () => {
+      for (const customer of customers) {
+        const convoRes = await getConversationByCustomer(
+          customer.id,
+          customer.channelAccountId,
+        );
+        if (convoRes.success && convoRes.data?.id === convId) {
+          setActiveChat({ id: customer.id, type: "customer" });
+          break;
+        }
+      }
+    };
+
+    if (customers.length > 0) {
+      findCustomer();
+    }
+  }, [searchParams, customers]);
 
   const handleSendMessage = async () => {
     if (!conversationId || (!messageInput.trim() && !selectedFiles.length))

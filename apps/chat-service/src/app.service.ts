@@ -17,6 +17,8 @@ import {
   users,
   userRoles,
   roles,
+  notifications,
+  notificationReads,
 } from '@repo/db';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -65,9 +67,11 @@ export class AppService implements OnModuleInit {
 
           let identity = identityResults[0];
           let currentCustomerId: string;
+          let customerName = 'Unknown';
+
           if (!identity) {
             currentCustomerId = uuidv4();
-            const customerName =
+            customerName =
               platform === 'telegram'
                 ? `${raw?.from?.first_name || ''} ${raw?.from?.last_name || ''}` ||
                   raw?.from?.username ||
@@ -77,6 +81,7 @@ export class AppService implements OnModuleInit {
                   : platform === 'discord'
                     ? `${raw.author.username}`
                     : 'Unknown';
+
             await tx.insert(customers).values({
               id: currentCustomerId,
               name: customerName,
@@ -92,6 +97,15 @@ export class AppService implements OnModuleInit {
             });
           } else {
             currentCustomerId = identity.customerId;
+
+            const existingCustomer = await tx
+              .select({ name: customers.name })
+              .from(customers)
+              .where(eq(customers.id, currentCustomerId))
+              .limit(1);
+
+            customerName = existingCustomer[0]?.name || 'Unknown';
+
             await tx
               .update(customers)
               .set({ lastSeenAt: new Date() })
@@ -137,6 +151,7 @@ export class AppService implements OnModuleInit {
               .set({ lastMessageAt: new Date() })
               .where(eq(conversations.id, currentConversationId));
           }
+
           const newMessageId = uuidv4();
           await tx.insert(messages).values({
             id: newMessageId,
@@ -190,6 +205,20 @@ export class AppService implements OnModuleInit {
             );
           }
 
+          const notificationId = uuidv4();
+          await tx.insert(notifications).values({
+            id: notificationId,
+            type: !identity ? 'new_customer' : 'new_message',
+            messageId: newMessageId,
+            data: JSON.stringify({
+              senderName: customerName,
+              preview: payload.text || '📎 Media',
+              platform: payload.platform,
+              conversationId:currentConversationId
+            }),
+            participants: participantIds,
+          });
+
           await this.pub.publish(
             'new_message',
             JSON.stringify({
@@ -200,6 +229,21 @@ export class AppService implements OnModuleInit {
                 mediaUrls: payload.mediaUrls || [],
                 senderType: 'customer',
                 createdAt: new Date(),
+              },
+              participantIds,
+            }),
+          );
+
+          await this.pub.publish(
+            'new_notification',
+            JSON.stringify({
+              notificationId,
+              type: !identity ? 'new_customer' : 'new_message',
+              data: {
+                senderName: customerName,
+                preview: payload.text || '📎 Media',
+                platform: payload.platform,
+                conversationId: currentConversationId,
               },
               participantIds,
             }),
@@ -570,6 +614,75 @@ export class AppService implements OnModuleInit {
       return { success: true, data: conversationGroups };
     } catch (error) {
       console.error(error);
+      return { success: false, message: `Failed ${error}` };
+    }
+  }
+
+  async getNotifications(page: number = 1, limit: number = 20) {
+    try {
+      const offset = (page - 1) * limit;
+
+      const results = await this.db
+        .select()
+        .from(notifications)
+        .orderBy(desc(notifications.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      const data = results.map((n) => ({
+        notificationId: n.id,
+        type: n.type,
+        data: typeof n.data === 'string' ? JSON.parse(n.data) : n.data,
+        receivedAt: n.createdAt,
+      }));
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, message: `Failed ${error}` };
+    }
+  }
+
+  async readNotification(notificationId: string, userId: string) {
+    try {
+      const existed = await this.db
+        .select()
+        .from(notifications)
+        .where(eq(notifications.id, notificationId))
+        .limit(1);
+
+      const userExisted = await this.db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (existed.length <= 0 || userExisted.length <= 0) {
+        return { success: false, message: 'Miss match information' };
+      }
+
+      const alreadyRead = await this.db
+        .select()
+        .from(notificationReads)
+        .where(
+          and(
+            eq(notificationReads.notificationId, notificationId),
+            eq(notificationReads.userId, userId),
+          ),
+        )
+        .limit(1);
+
+      if (alreadyRead.length > 0) {
+        return { success: true, message: 'Already read' };
+      }
+
+      await this.db.insert(notificationReads).values({
+        id: uuidv4(),
+        notificationId,
+        userId,
+      });
+
+      return { success: true, message: 'Marked as read' };
+    } catch (error) {
       return { success: false, message: `Failed ${error}` };
     }
   }

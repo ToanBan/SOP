@@ -89,4 +89,17 @@ export class AppController {
   async getConversationGroups() {
     return this.appService.getConversionGroup();
   }
+
+
+  @Get("notifications")
+  async getNotifications(){
+    return this.appService.getNotifications();
+  }
+
+
+  @Post("notification/read")
+  async readNotification(@Body("userId") userId:string, @Body("notificationId") notificationId:string){
+    return this.appService.readNotification(notificationId, userId)
+    
+  }
 }
